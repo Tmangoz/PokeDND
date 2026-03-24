@@ -23,7 +23,7 @@ def get_move_details(move_url):
     except: return None
 
 def calculate_analysis(pokemon_types):
-    weak, resist, immune_def = [], [], [] # Fixed: Initialized immune_def here
+    weak, resist, immune_def = [], [], []
     super_eff = set()
     def_mults = {}
     
@@ -31,11 +31,9 @@ def calculate_analysis(pokemon_types):
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
-            # Defensive
             for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
             for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
-            # Offensive
             for t in rel['double_damage_to']: super_eff.add(t['name'])
             
     for t, m in def_mults.items():
@@ -65,6 +63,9 @@ if 'team' not in st.session_state or not st.session_state['team']:
 else:
     cols = st.columns(3)
     
+    # Custom mapping for your specific shorthand
+    STAT_MAP = ["HP", "ATK", "DEF", "SpA", "SpD", "Spd"]
+
     for i, p_data in enumerate(st.session_state['team']):
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         
@@ -76,19 +77,23 @@ else:
                 if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # Row 1: Image & Large Stats
-                r1c1, r1c2 = st.columns([1, 1.1])
+                # Row 1: Image & Custom Stats
+                r1c1, r1c2 = st.columns([1, 1])
                 with r1c1:
                     st.image(p_data['sprites']['front_default'], width=110)
                 with r1c2:
-                    # Bolder, larger stats (13px)
-                    stats_html = "".join([f'<div style="font-size:13px; line-height:1.5; margin-bottom:1px;"><b>{s["stat"]["name"].replace("special-","S").upper()[:5]}:</b> {s["base_stat"]}</div>' for s in p_data['stats']])
+                    # Rendering stats with your specific labels
+                    stats_html = ""
+                    for idx, s in enumerate(p_data['stats']):
+                        label = STAT_MAP[idx]
+                        val = s['base_stat']
+                        stats_html += f'<div style="font-size:14px; line-height:1.4;"><b>{label}:</b> {val}</div>'
                     st.markdown(stats_html, unsafe_allow_html=True)
 
                 # Row 2: Type Analysis
                 weak, resist, super_eff = calculate_analysis(p_data['types'])
                 st.markdown(f'''
-                    <div style="background:rgba(255,255,255,0.07); padding:6px; border-radius:5px; margin:8px 0;">
+                    <div style="background:rgba(255,255,255,0.07); padding:6px; border-radius:5px; margin:10px 0;">
                         <div style="font-size:10px; margin-bottom:2px;"><b>WEAK:</b> {render_badges(weak)}</div>
                         <div style="font-size:10px; margin-bottom:2px;"><b>RESIST:</b> {render_badges(resist)}</div>
                         <div style="font-size:10px; color:#3498db;"><b>STR VS:</b> {render_badges(super_eff)}</div>
