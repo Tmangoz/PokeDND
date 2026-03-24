@@ -8,7 +8,6 @@ st.set_page_config(page_title="PokéDND Explorer", layout="wide")
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
-        /* Make the stat text slightly larger in the explorer too */
         .stat-text { font-size: 16px; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
@@ -67,12 +66,13 @@ if search_query:
         
     if p_data:
         st.divider()
-        # Adjusted ratio: 2 for Image, 3 for Stats/Moves
+        # Layout: 2 parts for Image, 3 parts for Stats/Moves
         col1, col2 = st.columns([2, 3])
         
         with col1:
-            # BIGGER IMAGE: Increased width to 400 for a clear view
-            st.image(p_data['sprites']['other']['official-artwork']['front_default'] or p_data['sprites']['front_default'], width=400)
+            # High-res Official Artwork at 400px
+            artwork_url = p_data['sprites']['other']['official-artwork']['front_default']
+            st.image(artwork_url if artwork_url else p_data['sprites']['front_default'], width=400)
             
             # Add to Team Button
             if st.button(f"➕ Add {p_data['name'].capitalize()} to Team", use_container_width=True, type="primary"):
@@ -89,21 +89,37 @@ if search_query:
         with col2:
             st.header(p_data['name'].capitalize())
             
-            # Types
+            # Types displayed as badges
             type_badges = "".join([f'<span style="background-color:#555; color:white; padding:4px 12px; border-radius:15px; margin-right:8px; font-weight:bold; font-size:14px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
             st.markdown(type_badges, unsafe_allow_html=True)
             
-            # Stats Section
             st.write("### Base Stats")
             STAT_LABELS = {
                 "hp": "HP", "attack": "ATK", "defense": "DEF", 
                 "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"
             }
             
-            # Using 2 columns for stats to keep it tight
+            # Fixed the formatting for the stat columns
             stat_cols = st.columns(2)
             for idx, s in enumerate(p_data['stats']):
                 label = STAT_LABELS.get(s['stat']['name'], s['stat']['name'].upper())
                 val = s['base_stat']
                 with stat_cols[idx % 2]:
-                    st.markdown(f"**{label}:**
+                    st.markdown(f"**{label}:** {val}")
+                    st.progress(min(val / 160, 1.0))
+
+            st.divider()
+            
+            # Learnable Moves Section
+            st.write("### 📜 Learnable Moves")
+            moves = sorted([m['move']['name'].replace("-", " ").title() for m in p_data['moves']])
+            
+            with st.expander(f"View all {len(moves)} moves for {p_data['name'].capitalize()}"):
+                m_cols = st.columns(3)
+                for i, m_name in enumerate(moves):
+                    m_cols[i % 3].write(f"• {m_name}")
+
+    else:
+        st.error("Pokémon not found.")
+else:
+    st.info("Use the search bar above to find a Pokémon and view its stats.")
