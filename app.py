@@ -1,7 +1,10 @@
 import streamlit as st
 import requests
 if st.sidebar.button("➡️ Go to Team Builder"):
-    st.switch_page("pages/1_Team_Builder.py")
+    try:
+        st.switch_page("pages/1_Team_Builder.py")
+    except:
+        st.error("Could not find the Team Builder page. Please check if the 'pages' folder exists in GitHub.")
 # 1. Page Config - Forces sidebar to stay open and uses wide layout
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
 
