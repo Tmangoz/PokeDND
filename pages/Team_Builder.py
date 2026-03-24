@@ -5,13 +5,13 @@ import os
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide")
 
-# --- INITIALIZATION LOGIC (Prevents KeyErrors for new users) ---
+# --- INITIALIZATION LOGIC ---
 if 'team' not in st.session_state:
     st.session_state['team'] = []
 if 'selected_moves' not in st.session_state:
     st.session_state['selected_moves'] = {}
 
-# 2. Hide Default Sidebar & Advanced Styling
+# 2. Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
@@ -34,6 +34,14 @@ st.markdown("""
         }
         
         .stat-label { font-size: 12px; font-weight: bold; margin-bottom: -5px; }
+        
+        /* Centering the image in its column */
+        .img-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -81,6 +89,7 @@ def calculate_analysis(pokemon_types):
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
             for t in rel['double_damage_to']: super_eff.add(t['name'])
             for t in rel['half_damage_to']: not_very.add(t['name'])
+            for t in rel['no_damage_to']: not_very.add(t['name'])
     for t, m in def_mults.items():
         if m > 1.0: weak.add(t)
         elif 0.0 <= m < 1.0: resist.add(t)
@@ -101,21 +110,15 @@ def add_move_callback(idx):
 
 # --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
-if st.sidebar.button("🏠 Home Page", use_container_width=True):
-    st.switch_page("app.py")
-
+if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
 team_count = len(st.session_state['team'])
-if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
-    st.switch_page("pages/Team_Builder.py")
-
+if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
     st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.rerun()
 
 # --- MAIN PAGE ---
 st.title("🏆 PokéDND Team Builder")
-
-# Quick Add Search
 all_names = get_all_pokemon_names()
 quick_add = st.selectbox("Quick Add Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Search to add...", key="quick_add_team")
 
@@ -146,19 +149,19 @@ else:
                 if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # NEW: Center Column for BIGGER and CENTERED image
-                i_c1, i_c2, i_c3 = st.columns([1, 2, 1])
-                with i_c2:
-                    st.image(p_data['sprites']['front_default'], width=180) # Width increased
-
-                st.divider()
-
-                # Row 2: Stats (Bars are restored here)
-                for s in p_data['stats']:
-                    label = STAT_MAP.get(s['stat']['name'], s['stat']['name'].upper())
-                    val = s['base_stat']
-                    st.markdown(f'<div class="stat-label">{label}: {val}</div>', unsafe_allow_html=True)
-                    st.progress(min(val / 160, 1.0))
+                # Row 1: Image (Left) and Stats (Right)
+                r1c1, r1c2 = st.columns([1.2, 2])
+                with r1c1:
+                    # Centered and bigger image inside the left column
+                    st.markdown('<div class="img-container">', unsafe_allow_html=True)
+                    st.image(p_data['sprites']['front_default'], width=180)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                with r1c2:
+                    for s in p_data['stats']:
+                        label = STAT_MAP.get(s['stat']['name'], s['stat']['name'].upper())
+                        val = s['base_stat']
+                        st.markdown(f'<div class="stat-label">{label}: {val}</div>', unsafe_allow_html=True)
+                        st.progress(min(val / 160, 1.0))
 
                 weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
                 st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:8px;"></div>', unsafe_allow_html=True)
@@ -171,7 +174,6 @@ else:
                 with t_col2:
                     st.markdown(f'<div style="font-size:11px; font-weight:bold; color:#3498db;">⚔️ OFFENSE</div>', unsafe_allow_html=True)
                     st.markdown(f'<div style="font-size:10px;"><b>Super:</b><br>{render_badges(super_eff)}</div>', unsafe_allow_html=True)
-                    # Restored: Offense Resistance line
                     st.markdown(f'<div style="font-size:10px;"><b>Resisted:</b><br>{render_badges(not_very)}</div>', unsafe_allow_html=True)
 
                 st.divider()
@@ -180,19 +182,15 @@ else:
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_move_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
-                # Active Moves List
                 for m_idx, m_name in enumerate(st.session_state['selected_moves'][i]):
                     api_n = m_name.lower().replace(" ", "-")
                     try:
                         m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
                         m_details = get_move_details(m_url)
-                        # Determine color based on move type
                         bg_color = TYPE_COLORS.get(m_details['type']['name'], "#978fdb")
-                        
                         m_col1, m_col2 = st.columns([5, 1])
-                        with m_col1:
-                            st.markdown(f'<div class="move-bar-centered" style="background-color: {bg_color};">{m_name}</div>', unsafe_allow_html=True)
-                        with m_col2:
+                        with m_col1: st.markdown(f'<div class="move-bar-centered" style="background-color: {bg_color};">{m_name}</div>', unsafe_allow_html=True)
+                        with m_col2: 
                             if st.button("✖", key=f"del_m_{i}_{m_idx}"):
                                 st.session_state['selected_moves'][i].pop(m_idx); st.rerun()
                     except: continue
