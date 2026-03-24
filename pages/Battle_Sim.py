@@ -10,7 +10,7 @@ if 'team' not in st.session_state: st.session_state['team'] = []
 if 'selected_moves' not in st.session_state: st.session_state['selected_moves'] = {}
 if 'attacker_search' not in st.session_state: st.session_state['attacker_search'] = ""
 
-# 2. Styling
+# 2. Styling & Colors
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
     "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
@@ -86,7 +86,28 @@ def get_all_learnable_moves(pokemon_name):
         return sorted(list(set([m['move']['name'].replace("-", " ").title() for m in res['moves']])))
     except: return []
 
-# --- INTERFACE ---
+# --- SIDEBAR MENU (RESTORED) ---
+st.sidebar.title("🎮 PokéDND Menu")
+
+if st.sidebar.button("🏠 Home Page", use_container_width=True):
+    st.switch_page("app.py")
+
+team_count = len(st.session_state.get('team', []))
+if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
+    st.switch_page("pages/Team_Builder.py")
+
+if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
+    st.switch_page("pages/Battle_Sim.py")
+
+st.sidebar.divider()
+
+if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
+    st.session_state['team'] = []
+    st.session_state['selected_moves'] = {}
+    st.session_state['shiny_states'] = {}
+    st.rerun()
+
+# --- MAIN INTERFACE ---
 st.title("⚔️ Poke Camp Battle Sim")
 
 # Team Ribbon
@@ -192,14 +213,4 @@ if attacker and defender:
                 p_bon = get_move_power_bonus(m_info.get('power', 0))
                 a_bon = max(attacker['stats'][1]['base_stat'], attacker['stats'][3]['base_stat']) // 20
                 t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in defender['types']])
-                d_red = max(defender['stats'][2]['base_stat'], defender['stats'][4]['base_stat']) // 40
-                expected = 0 if t_mod == -999 else max(0, a_bon + p_bon + t_mod - d_red)
-                
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2:
-                    st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(m_info["type"]["name"],"#444")};">{selected_m.upper()}</b><br>Pwr: {m_info.get("power") or "-"}<br>Dmg: {expected}</div>', unsafe_allow_html=True)
-                    if st.button("Roll Attack", key="roll_custom", use_container_width=True):
-                        handle_roll(selected_m, m_info)
-
-    if 'last_log' in st.session_state:
-        st.markdown(f'<div class="battle-log">{st.session_state["last_log"]}</div>', unsafe_allow_html=True)
+                d_red = max(defender['stats'][2]['base_stat'], defender
