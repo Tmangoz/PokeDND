@@ -1,6 +1,10 @@
 import streamlit as st
 import requests
 
+# This ensures the session state (your team) is accessible
+if 'team' not in st.session_state:
+    st.session_state['team'] = []
+
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide", initial_sidebar_state="expanded")
 
