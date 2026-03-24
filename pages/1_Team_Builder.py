@@ -14,37 +14,66 @@ TYPE_COLORS = {
 }
 
 @st.cache_data(ttl=86400)
+def get_type_data(type_name):
+    try:
+        return requests.get(f"https://pokeapi.co/api/v2/type/{type_name}").json()
+    except: return None
+
+@st.cache_data(ttl=86400)
 def get_move_details(move_url):
     try:
         return requests.get(move_url).json()
     except: return None
 
-# Initialize session states
-if 'team' not in st.session_state:
-    st.session_state['team'] = []
-if 'selected_moves' not in st.session_state:
-    st.session_state['selected_moves'] = {}
-
-# --- CALLBACK FUNCTION FOR AUTO-ADD ---
-def add_move_callback(pokemon_index):
-    # Get the value from the selectbox using its unique key
-    selected_val = st.session_state[f"search_{pokemon_index}"]
+def calculate_effectiveness(pokemon_types):
+    """Calculates defensive weaknesses and resistances based on Pokemon types."""
+    weak = []
+    resist = []
+    immune = []
     
-    if selected_val and selected_val != "":
+    # We track multipliers: 2.0 = weak, 0.5 = resist, 0.0 = immune
+    multipliers = {}
+
+    for t_info in pokemon_types:
+        t_name = t_info['type']['name']
+        data = get_type_data(t_name)
+        if data:
+            damage_rel = data['damage_relations']
+            # Double Damage From (Weaknesses)
+            for t in damage_rel['double_damage_from']:
+                multipliers[t['name']] = multipliers.get(t['name'], 1.0) * 2.0
+            # Half Damage From (Resistances)
+            for t in damage_rel['half_damage_from']:
+                multipliers[t['name']] = multipliers.get(t['name'], 1.0) * 0.5
+            # No Damage From (Immunities)
+            for t in damage_rel['no_damage_from']:
+                multipliers[t['name']] = 0.0
+
+    for t_name, mult in multipliers.items():
+        if mult > 1.0: weak.append(t_name)
+        elif 0.0 < mult < 1.0: resist.append(t_name)
+        elif mult == 0.0: immune.append(t_name)
+            
+    return weak, resist, immune
+
+def render_type_badges(types, label, color):
+    if not types: return ""
+    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 6px; border-radius:4px; margin:2px; font-size:10px; display:inline-block;">{t.upper()}</span>' for t in types])
+    return f'<div style="margin-bottom:5px;"><b style="color:{color}; font-size:11px;">{label}:</b> {badges}</div>'
+
+# --- CALLBACK FOR AUTO-ADD ---
+def add_move_callback(pokemon_index):
+    selected_val = st.session_state[f"search_{pokemon_index}"]
+    if selected_val:
         current_moves = st.session_state['selected_moves'].get(pokemon_index, [])
-        if len(current_moves) < 4:
-            if selected_val not in current_moves:
-                current_moves.append(selected_val)
-                st.session_state['selected_moves'][pokemon_index] = current_moves
-        else:
-            st.toast(f"Max 4 moves reached for this Pokémon!", icon="⚠️")
-        
-        # Reset the selectbox to empty after adding
+        if len(current_moves) < 4 and selected_val not in current_moves:
+            current_moves.append(selected_val)
+            st.session_state['selected_moves'][pokemon_index] = current_moves
         st.session_state[f"search_{pokemon_index}"] = ""
 
-st.title("🏆 My Pokémon Team")
+st.title("🏆 My Pokémon Team Builder")
 
-if not st.session_state['team']:
+if 'team' not in st.session_state or not st.session_state['team']:
     st.info("Your team is empty! Go back to the Explorer to add some Pokémon.")
 else:
     for i, p_data in enumerate(st.session_state['team']):
@@ -52,76 +81,54 @@ else:
             st.session_state['selected_moves'][i] = []
 
         with st.container(border=True):
-            main_col1, main_col2 = st.columns([2, 3])
+            # Split into 3 columns: Info/Stats | Moves | Type Effectiveness
+            col_info, col_moves, col_types = st.columns([1.5, 2, 1.5])
             
-            with main_col1:
-                st.subheader(f"{p_data['name'].capitalize()}")
-                img_col, stat_col = st.columns([1, 1])
-                with img_col:
-                    st.image(p_data['sprites']['front_default'], width=120)
-                    if st.button("🗑️ Remove Pokémon", key=f"rem_pkmn_{i}"):
+            with col_info:
+                st.subheader(p_data['name'].capitalize())
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.image(p_data['sprites']['front_default'], width=100)
+                    if st.button("🗑️ Remove", key=f"rem_p_{i}"):
                         st.session_state['team'].pop(i)
                         st.session_state['selected_moves'].pop(i, None)
                         st.rerun()
-                
-                with stat_col:
+                with c2:
                     for s in p_data['stats']:
-                        short_name = s['stat']['name'].replace("special-attack", "Sp.Atk").replace("special-defense", "Sp.Def").upper()
-                        st.write(f"**{short_name}**: {s['base_stat']}")
+                        name = s['stat']['name'].replace("special-", "S.").upper()
+                        st.caption(f"**{name}**: {s['base_stat']}")
 
-            with main_col2:
-                # 1. Prepare Move List
-                all_moves = []
-                for m in p_data['moves']:
-                    methods = [d['move_learn_method']['name'] for d in m['version_group_details']]
-                    if 'level-up' in methods or 'machine' in methods:
-                        all_moves.append(m['move']['name'].replace("-", " ").title())
-                all_moves = sorted(list(set(all_moves)))
-
-                # 2. Auto-Add Selectbox
-                st.write("🔍 **Add a Move:**")
-                st.selectbox(
-                    "Search and select to add automatically",
-                    options=[""] + all_moves,
-                    key=f"search_{i}",
-                    on_change=add_move_callback,
-                    args=(i,),
-                    label_visibility="collapsed"
-                )
-
-                # 3. Display Moves in a Grid
-                st.write("**Active Moves:**")
-                m_cols = st.columns(2)
+            with col_moves:
+                st.write("**Moves**")
+                all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
+                st.selectbox("Add Move", options=[""] + all_m, key=f"search_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
-                for idx, m_display_name in enumerate(st.session_state['selected_moves'][i]):
-                    # Re-fetch data for the badge
-                    api_name = m_display_name.lower().replace(" ", "-")
-                    try:
-                        m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_name)
-                        m_info = get_move_details(m_url)
-                        
-                        if m_info:
-                            m_type = m_info['type']['name']
-                            m_power = m_info.get('power') if m_info.get('power') else "—"
-                            bg = TYPE_COLORS.get(m_type, "#777")
-                            
-                            with m_cols[idx % 2]:
-                                # Styled Badge
-                                st.markdown(f'''
-                                    <div style="background-color:{bg}; color:white; padding:8px; border-radius:8px; margin-bottom:2px; text-align:center; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);">
-                                        <div style="font-weight:bold; font-size:12px;">{m_display_name.upper()}</div>
-                                        <div style="font-size:10px; opacity:0.8;">PWR: {m_power} | {m_type.upper()}</div>
-                                    </div>
-                                ''', unsafe_allow_html=True)
-                                
-                                # Small red remove button
-                                if st.button(f"✖ Remove {m_display_name}", key=f"del_{i}_{idx}", use_container_width=True, type="secondary"):
-                                    st.session_state['selected_moves'][i].pop(idx)
-                                    st.rerun()
-                    except StopIteration:
-                        continue # Move not found in data
+                m_grid = st.columns(2)
+                for idx, m_name in enumerate(st.session_state['selected_moves'][i]):
+                    api_n = m_name.lower().replace(" ", "-")
+                    m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
+                    m_info = get_move_details(m_url)
+                    if m_info:
+                        bg = TYPE_COLORS.get(m_info['type']['name'], "#777")
+                        with m_grid[idx % 2]:
+                            st.markdown(f'<div style="background-color:{bg}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:11px; font-weight:bold;">{m_name.upper()}<br><small>PWR: {m_info.get("power") or "—"}</small></div>', unsafe_allow_html=True)
+                            if st.button(f"✖", key=f"del_{i}_{idx}", use_container_width=True):
+                                st.session_state['selected_moves'][i].pop(idx)
+                                st.rerun()
 
-    st.divider()
+            with col_types:
+                st.write("**Defensive Chart**")
+                weak, resist, immune = calculate_effectiveness(p_data['types'])
+                
+                chart_html = f'''
+                    <div style="background-color:rgba(255,255,255,0.05); padding:10px; border-radius:10px; border: 1px solid rgba(255,255,255,0.1);">
+                        {render_type_badges(weak, "WEAK TO", "#ff4b4b")}
+                        {render_type_badges(resist, "RESISTS", "#2ecc71")}
+                        {render_type_badges(immune, "IMMUNE TO", "#f1c40f")}
+                    </div>
+                '''
+                st.markdown(chart_html, unsafe_allow_html=True)
+
     if st.button("Clear Full Team", type="primary"):
         st.session_state['team'] = []
         st.session_state['selected_moves'] = {}
