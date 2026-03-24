@@ -75,23 +75,29 @@ def get_move_info(move_url):
 if 'team' not in st.session_state: 
     st.session_state['team'] = []
 
+# Shiny states for the Team Builder compatibility
+if 'shiny_states' not in st.session_state:
+    st.session_state['shiny_states'] = {}
+
+# Local explorer shiny toggle
+if 'explorer_shiny' not in st.session_state:
+    st.session_state['explorer_shiny'] = False
+
 # --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
 
-# Navigation
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
     st.switch_page("app.py")
 
-# Restored Team Counter Logic
 team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
 
 st.sidebar.divider()
 
-# Restored Clear Team Button in Sidebar
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
     st.session_state['team'] = []
+    st.session_state['shiny_states'] = {}
     if 'selected_moves' in st.session_state:
         st.session_state['selected_moves'] = {}
     st.rerun()
@@ -108,8 +114,18 @@ if search_query:
         col1, col2 = st.columns([2, 3])
         
         with col1:
-            artwork = p_data['sprites']['other']['official-artwork']['front_default']
-            img_url = artwork if artwork else p_data['sprites']['front_default']
+            # --- SHINY TOGGLE BUTTON ---
+            shiny_label = "✨ Show Shiny Form" if not st.session_state['explorer_shiny'] else "🌟 Show Normal Form"
+            if st.button(shiny_label, use_container_width=True):
+                st.session_state['explorer_shiny'] = not st.session_state['explorer_shiny']
+                st.rerun()
+
+            # Determine image URL based on Shiny Toggle
+            sprite_type = 'front_shiny' if st.session_state['explorer_shiny'] else 'front_default'
+            
+            # Try to get high-res official artwork shiny/normal
+            artwork = p_data['sprites']['other']['official-artwork'][sprite_type]
+            img_url = artwork if artwork else p_data['sprites'][sprite_type]
             
             st.markdown(f'''
                 <div class="centered-container">
@@ -122,15 +138,24 @@ if search_query:
                     if any(p['name'] == p_data['name'] for p in st.session_state['team']):
                         st.warning("Already in your team!")
                     else:
+                        # Add to team
                         st.session_state['team'].append(p_data)
-                        st.success("Added!")
+                        # Record shiny state for the Team Builder page
+                        new_index = len(st.session_state['team']) - 1
+                        st.session_state['shiny_states'][new_index] = st.session_state['explorer_shiny']
+                        
+                        st.success(f"Added {'Shiny ' if st.session_state['explorer_shiny'] else ''}{p_data['name'].capitalize()}!")
                         st.rerun()
                 else: 
                     st.error("Team is full!")
 
         with col2:
-            st.header(p_data['name'].capitalize())
-            type_badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t["type"]["name"],"#777")}; color:white; padding:5px 15px; border-radius:20px; margin-right:10px; font-weight:bold; font-size:16px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
+            display_name = p_data['name'].capitalize()
+            if st.session_state['explorer_shiny']:
+                display_name += " ✨"
+            st.header(display_name)
+            
+            type_badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t["type"]["name"],"#777")}; color:white; padding:5px 15px; border-radius:20px; margin-right:10px; font-weight:bold; font-size:14px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
             st.markdown(type_badges, unsafe_allow_html=True)
             
             st.write("### Base Stats")
@@ -143,7 +168,7 @@ if search_query:
                     st.progress(min(val / 160, 1.0))
 
             st.divider()
-            st.write("### 📀 Learnable TMs")
+            st.write("### 📜 Learnable TMs")
             
             tm_moves = [m for m in p_data['moves'] if any(v['move_learn_method']['name'] == 'machine' for v in m['version_group_details'])]
             
