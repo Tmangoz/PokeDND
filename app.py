@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="PokéDex: TM Master", layout="wide")
+st.set_page_config(page_title="PokeDND: The ultimate web guide", layout="wide")
 
 # --- CACHING FUNCTIONS ---
 
