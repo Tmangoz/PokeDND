@@ -42,7 +42,7 @@ def get_evolution_info(pokemon_name):
     return "No further evolution", None
 
 # --- UI ---
-st.title("🔴 PokéDex TM Tracker")
+st.title("PokeDND: PokeDex")
 pokemon_name = st.text_input("Enter Pokémon Name", value="Pikachu").lower()
 
 if pokemon_name:
