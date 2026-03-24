@@ -1,8 +1,7 @@
 import streamlit as st
 import requests
-
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 st.set_page_config(page_title="PokéDex Explorer", layout="wide")
-st.set_page_config(page_title="PokéApp", initial_sidebar_state="expanded")
 # Initialize team in session state so it persists across pages
 if 'team' not in st.session_state:
     st.session_state['team'] = []
