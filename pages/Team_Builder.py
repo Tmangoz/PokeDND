@@ -9,10 +9,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR MENU ---
+# --- CUSTOM SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
 
+# FIXED: Changed "Home.py" to "app.py"
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
-    st.switch_page("../app.py")
+    try:
+        st.switch_page("app.py")
+    except Exception as e:
+        # This is a fallback in case the cloud environment 
+        # requires the relative path back to the root
+        st.switch_page("../app.py")
 
 # No need for a button to go to the page we are already on, 
 # but we can show the count!
