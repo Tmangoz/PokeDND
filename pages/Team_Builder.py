@@ -103,9 +103,7 @@ st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
 team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
-# NEW: Battle Sim Button
-if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
-    st.switch_page("pages/Battle_Sim.py")
+if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True): st.switch_page("pages/Battle_Sim.py")
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
     st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.session_state['shiny_states'] = {}; st.rerun()
@@ -137,13 +135,12 @@ else:
         
         with cols[i % 3]:
             with st.container(border=True):
-                # Header with Delete and Shiny Toggle
+                # Header
                 h1, h2, h3 = st.columns([4, 1, 1])
                 h1.subheader(p_data['name'].capitalize())
                 
-                # Shiny Toggle Button ✨
                 shiny_label = "✨" if not st.session_state['shiny_states'][i] else "🌟"
-                if h2.button(shiny_label, key=f"shiny_{i}", help="Toggle Shiny Form"):
+                if h2.button(shiny_label, key=f"shiny_{i}"):
                     st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
                     st.rerun()
                 
@@ -153,14 +150,11 @@ else:
                     st.session_state['shiny_states'].pop(i, None)
                     st.rerun()
 
-                # Row 1: Image (Left) and Stats (Right)
+                # Row 1: Image and Stats
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
-                    st.markdown('<div class="img-container">', unsafe_allow_html=True)
-                    # Switch sprite based on shiny state
                     sprite_type = 'front_shiny' if st.session_state['shiny_states'][i] else 'front_default'
                     st.image(p_data['sprites'][sprite_type], width=180)
-                    st.markdown('</div>', unsafe_allow_html=True)
                 with r1c2:
                     for s in p_data['stats']:
                         label = STAT_MAP.get(s['stat']['name'], s['stat']['name'].upper())
@@ -174,20 +168,14 @@ else:
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown(f'<div style="font-size:11px; font-weight:bold; color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="analysis-label"><b>Weak Against:</b></div>', unsafe_allow_html=True)
                     st.markdown(render_badges(weak), unsafe_allow_html=True)
-                    st.markdown(f'<div class="analysis-label"><b>Resistant to:</b></div>', unsafe_allow_html=True)
-                    st.markdown(render_badges(resist), unsafe_allow_html=True)
                 with t_col2:
                     st.markdown(f'<div style="font-size:11px; font-weight:bold; color:#3498db;">⚔️ OFFENSE</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="analysis-label"><b>Super Effective:</b></div>', unsafe_allow_html=True)
                     st.markdown(render_badges(super_eff), unsafe_allow_html=True)
-                    st.markdown(f'<div class="analysis-label"><b>Not Very Effective Against:</b></div>', unsafe_allow_html=True)
-                    st.markdown(render_badges(not_very), unsafe_allow_html=True)
 
                 st.divider()
 
-                # Move Selection
+                # Move Selection with Power Labels
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_move_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
@@ -196,9 +184,15 @@ else:
                     try:
                         m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
                         m_details = get_move_details(m_url)
+                        
+                        # Get Power
+                        pwr = m_details.get('power')
+                        pwr_label = f"({pwr})" if pwr else "(---)"
+                        
                         bg_color = TYPE_COLORS.get(m_details['type']['name'], "#978fdb")
                         m_col1, m_col2 = st.columns([5, 1])
-                        with m_col1: st.markdown(f'<div class="move-bar-centered" style="background-color: {bg_color};">{m_name}</div>', unsafe_allow_html=True)
+                        with m_col1: 
+                            st.markdown(f'<div class="move-bar-centered" style="background-color: {bg_color};">{m_name} {pwr_label}</div>', unsafe_allow_html=True)
                         with m_col2: 
                             if st.button("✖", key=f"del_m_{i}_{m_idx}"):
                                 st.session_state['selected_moves'][i].pop(m_idx); st.rerun()
