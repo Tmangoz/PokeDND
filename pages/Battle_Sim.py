@@ -27,10 +27,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
-if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
-if st.sidebar.button("➡️ Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
+
+if st.sidebar.button("🏠 Home Page", use_container_width=True):
+    st.switch_page("app.py")
+
+team_count = len(st.session_state['team'])
+if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
+    st.switch_page("pages/Team_Builder.py")
+
+# NEW: Battle Sim Button
+if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
+    st.switch_page("pages/Battle_Sim.py")
+
+st.sidebar.divider()
 
 # --- HELPERS ---
 def get_mod(stat_value):
