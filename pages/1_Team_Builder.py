@@ -76,29 +76,31 @@ else:
                 if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # Row 1: Image & Stats
-                r1c1, r1c2 = st.columns([1, 1])
+                # Row 1: Larger Image & Stats
+                # Adjusted ratio [1.3, 1] gives the image more room
+                r1c1, r1c2 = st.columns([1.3, 1])
                 with r1c1:
-                    st.image(p_data['sprites']['front_default'], width=100)
+                    # Increased to 130px width
+                    st.image(p_data['sprites']['front_default'], width=130)
                 with r1c2:
-                    stats_html = "".join([f'<div style="font-size:14px; line-height:1.2;"><b>{STAT_MAP[idx]}:</b> {s["base_stat"]}</div>' for idx, s in enumerate(p_data['stats'])])
+                    stats_html = "".join([f'<div style="font-size:14px; line-height:1.2; margin-bottom:2px;"><b>{STAT_MAP[idx]}:</b> {s["base_stat"]}</div>' for idx, s in enumerate(p_data['stats'])])
                     st.markdown(stats_html, unsafe_allow_html=True)
 
-                # Row 2: Enhanced Split Type Analysis
+                # Row 2: Type Analysis
                 weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
-                st.markdown('<div style="margin-top:12px; border-top:1px solid #444; padding-top:8px;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:10px;"></div>', unsafe_allow_html=True)
                 
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown(f'''
-                        <div style="font-size:14px; font-weight:bold; color:#ff4b4b; text-align:center; background:rgba(255,75,75,0.1); border-radius:3px; margin-bottom:6px; padding:2px;">🛡️ DEFENSE</div>
-                        <div style="font-size:12px; margin-bottom:5px;"><b>Weak To:</b><br>{render_badges(weak)}</div>
+                        <div style="font-size:14px; font-weight:bold; color:#ff4b4b; text-align:center; background:rgba(255,75,75,0.15); border-radius:4px; margin-bottom:8px; padding:3px;">🛡️ DEFENSE</div>
+                        <div style="font-size:12px; margin-bottom:6px;"><b>Weak To:</b><br>{render_badges(weak)}</div>
                         <div style="font-size:12px;"><b>Resists:</b><br>{render_badges(resist)}</div>
                     ''', unsafe_allow_html=True)
                 with t_col2:
                     st.markdown(f'''
-                        <div style="font-size:14px; font-weight:bold; color:#3498db; text-align:center; background:rgba(52,152,219,0.1); border-radius:3px; margin-bottom:6px; padding:2px;">⚔️ OFFENSE</div>
-                        <div style="font-size:12px; margin-bottom:5px;"><b>Super Effective Against:</b><br>{render_badges(super_eff)}</div>
+                        <div style="font-size:14px; font-weight:bold; color:#3498db; text-align:center; background:rgba(52,152,219,0.15); border-radius:4px; margin-bottom:8px; padding:3px;">⚔️ OFFENSE</div>
+                        <div style="font-size:12px; margin-bottom:6px;"><b>Super Effective Against:</b><br>{render_badges(super_eff)}</div>
                         <div style="font-size:12px;"><b>Not Very Effective Against:</b><br>{render_badges(not_very)}</div>
                     ''', unsafe_allow_html=True)
 
@@ -117,7 +119,7 @@ else:
                             bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
                             m_col, x_col = st.columns([5, 1.2])
                             m_col.markdown(f'''
-                                <div style="background-color:{bg}; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:2px; height:24px; display:flex; align-items:center;">
+                                <div style="background-color:{bg}; color:white; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:3px; height:28px; display:flex; align-items:center;">
                                     {m_name.upper()}
                                 </div>
                             ''', unsafe_allow_html=True)
