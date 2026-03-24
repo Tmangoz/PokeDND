@@ -4,39 +4,29 @@ import requests
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide")
 
-# --- INITIALIZATION LOGIC ---
-if 'team' not in st.session_state:
-    st.session_state['team'] = []
-if 'selected_moves' not in st.session_state:
-    st.session_state['selected_moves'] = {}
-if 'shiny_states' not in st.session_state:
-    st.session_state['shiny_states'] = {}
-
-# --- 2. THE FIXED DELETE FUNCTION ---
+# --- 2. THE PERMANENT FIX: DELETE CALLBACK ---
 def delete_pokemon(index_to_remove):
     """
-    Handles the removal of a pokemon and re-indexes all associated 
-    data (moves and shiny states) to prevent the 'vanishing' or 
-    'unresponsive' button bug.
+    This runs BEFORE the page rerenders. 
+    It removes the pokemon and shifts all move/shiny data 
+    so the indices stay perfectly aligned.
     """
-    # Remove from main team list
+    # Remove from team
     st.session_state['team'].pop(index_to_remove)
     
-    # Store old data to re-map
-    old_moves = st.session_state['selected_moves']
-    old_shiny = st.session_state['shiny_states']
+    # Store old data
+    old_moves = st.session_state.get('selected_moves', {})
+    old_shiny = st.session_state.get('shiny_states', {})
     
-    # Create fresh empty dicts
+    # Rebuild dictionaries
     new_moves = {}
     new_shiny = {}
     
-    # Re-map remaining data to new indices
-    # If we had 0, 1, 2 and removed 1, then 0 stays 0 and 2 becomes 1
+    # Shift indices for everyone after the deleted pokemon
     current_idx = 0
     for old_idx in range(len(st.session_state['team']) + 1):
         if old_idx == index_to_remove:
             continue
-        
         if old_idx in old_moves:
             new_moves[current_idx] = old_moves[old_idx]
         if old_idx in old_shiny:
@@ -45,9 +35,13 @@ def delete_pokemon(index_to_remove):
         
     st.session_state['selected_moves'] = new_moves
     st.session_state['shiny_states'] = new_shiny
-    # No rerun here; it will happen automatically after the callback finishes
 
-# 3. Styling
+# --- INITIALIZATION LOGIC ---
+if 'team' not in st.session_state: st.session_state['team'] = []
+if 'selected_moves' not in st.session_state: st.session_state['selected_moves'] = {}
+if 'shiny_states' not in st.session_state: st.session_state['shiny_states'] = {}
+
+# 3. Styling (Restored Full Analysis Styles)
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
@@ -146,8 +140,7 @@ if quick_add:
     if p_data:
         if len(st.session_state['team']) < 6:
             if not any(p['name'] == p_data['name'] for p in st.session_state['team']):
-                st.session_state['team'].append(p_data)
-                st.rerun()
+                st.session_state['team'].append(p_data); st.rerun()
         else: st.error("Team is full!")
 
 st.divider()
@@ -158,9 +151,7 @@ else:
     cols = st.columns(3)
     STAT_MAP = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
 
-    # IMPORTANT: We iterate through the team list itself
     for i, p_data in enumerate(st.session_state['team']):
-        # Ensure state keys exist for this specific loop
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
         
@@ -169,14 +160,11 @@ else:
                 h1, h2, h3 = st.columns([4, 1, 1])
                 h1.subheader(p_data['name'].capitalize())
                 
-                # Shiny Toggle
                 shiny_label = "✨" if not st.session_state['shiny_states'][i] else "🌟"
                 if h2.button(shiny_label, key=f"shiny_{i}"):
-                    st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
-                    st.rerun()
+                    st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]; st.rerun()
 
-                # DELETE BUTTON WITH CALLBACK
-                # The callback ensures the data is wiped before the page rerenders
+                # TRASH BUTTON FIX
                 h3.button("🗑️", key=f"rem_p_{i}", on_click=delete_pokemon, args=(i,))
 
                 r1c1, r1c2 = st.columns([1.2, 2])
@@ -193,13 +181,20 @@ else:
                 weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
                 st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:8px;"></div>', unsafe_allow_html=True)
                 
+                # RESTORED FULL ANALYSIS WITH LABELS
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown('<div class="column-header" style="color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="analysis-label"><b>Weak Against:</b></div>', unsafe_allow_html=True)
                     st.markdown(render_badges(weak), unsafe_allow_html=True)
+                    st.markdown('<div class="analysis-label"><b>Resistant to:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(resist), unsafe_allow_html=True)
                 with t_col2:
                     st.markdown('<div class="column-header" style="color:#3498db;">⚔️ OFFENSE</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="analysis-label"><b>Super Effective:</b></div>', unsafe_allow_html=True)
                     st.markdown(render_badges(super_eff), unsafe_allow_html=True)
+                    st.markdown('<div class="analysis-label"><b>Not Effective:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(not_very), unsafe_allow_html=True)
 
                 st.divider()
 
