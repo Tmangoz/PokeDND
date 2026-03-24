@@ -1,6 +1,16 @@
 import streamlit as st
 import requests
 import os
+# 1. Page Config
+st.set_page_config(page_title="Team Builder", layout="wide")
+
+# --- NEW: INITIALIZATION LOGIC ---
+# This prevents the KeyError for new users
+if 'team' not in st.session_state:
+    st.session_state['team'] = []
+
+if 'selected_moves' not in st.session_state:
+    st.session_state['selected_moves'] = {}
 # Hide the default sidebar navigation links here too
 st.markdown("""
     <style>
