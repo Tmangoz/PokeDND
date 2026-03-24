@@ -1,17 +1,21 @@
 import streamlit as st
 import requests
-# Updated Sidebar Navigation in app.py
+# Hide the default sidebar navigation links
+st.markdown("""
+    <style>
+        [data-testid="stSidebarNav"] {display: none;}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
 
-# If you want a button that specifically acts as a "Home" reset
-if st.sidebar.button("🏠 Home Page"):
-    st.switch_page("app.py")
+if st.sidebar.button("🏠 Home Page", use_container_width=True):
+    st.switch_page("Home.py")
 
-if st.sidebar.button("➡️ Go to Team Builder"):
-    try:
-        st.switch_page("pages/1_Team_Builder.py")
-    except:
-        st.switch_page("1_Team_Builder.py")
+team_count = len(st.session_state.get('team', []))
+if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
+    st.switch_page("pages/Team_Builder.py")
 # 1. Page Config - Forces sidebar to stay open and uses wide layout
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
 
