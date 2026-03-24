@@ -1,10 +1,10 @@
 import streamlit as st
 import requests
 
-# 1. Page Config (Forces sidebar to stay open)
+# 1. Page Config
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
 
-# 2. Type Colors Dictionary
+# 2. Type Colors
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
     "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
@@ -26,17 +26,10 @@ def get_pokemon_data(name):
 
 @st.cache_data(ttl=86400)
 def get_move_type(move_url):
-    """Fetches the type of a specific move."""
     try:
         res = requests.get(move_url).json()
         return res['type']['name']
     except: return "normal"
-
-@st.cache_data(ttl=86400)
-def get_all_tm_moves():
-    url = "https://pokeapi.co/api/v2/move-learn-method/4/" 
-    res = requests.get(url).json()
-    return {m['name'].replace("-", " ").title() for m in res['names']}
 
 # --- UI ---
 st.title("🔍 Pokémon Explorer")
@@ -45,35 +38,38 @@ search_name = st.text_input("Search Pokémon Name", value="Pikachu")
 
 if search_name:
     data = get_pokemon_data(search_name)
-    all_tms = get_all_tm_moves()
     
     if data:
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(data['sprites']['other']['official-artwork']['front_default'], width=220)
+            # Displays the official artwork at a controlled width
+            st.image(data['sprites']['other']['official-artwork']['front_default'], width=250)
+            
             if st.button("➕ Add to Team"):
                 if len(st.session_state['team']) < 6:
-                    st.session_state['team'].append(data)
-                    st.success(f"Added {data['name'].capitalize()}!")
+                    # Avoid duplicates
+                    if not any(p['name'] == data['name'] for p in st.session_state['team']):
+                        st.session_state['team'].append(data)
+                        st.success(f"Added {data['name'].capitalize()}!")
+                    else:
+                        st.warning("Already in team!")
                 else:
                     st.error("Team is full!")
         
         with col2:
             st.header(data['name'].capitalize())
-            # Stat display
+            # Display stats in a clean list
             for s in data['stats']:
-                st.write(f"**{s['stat']['name'].upper()}**: {s['base_stat']}")
+                stat_name = s['stat']['name'].upper().replace("-", " ")
+                st.write(f"**{stat_name}**: {s['base_stat']}")
 
         st.divider()
-        st.subheader("💿 TM Compatibility (Colored by Type)")
+        st.subheader("💿 Learnable TMs")
         
-        # We use a spinner because fetching 50+ move types can take a moment
-        with st.spinner('Fetching move types...'):
-            can_learn_html = []
-            can_learn_set = set()
-
+        with st.spinner('Loading move types...'):
+            tm_badges = []
+            # Extract moves learned via 'machine'
             for m in data['moves']:
-                # Filter for TMs
                 is_tm = any(d['move_learn_method']['name'] == 'machine' for d in m['version_group_details'])
                 if is_tm:
                     m_name = m['move']['name']
@@ -81,21 +77,29 @@ if search_name:
                     m_type = get_move_type(m_url)
                     bg = TYPE_COLORS.get(m_type, "#777")
                     
-                    # Store for 'Can Learn' HTML
-                    badge = f'<span style="background-color:{bg}; color:white; padding:4px 10px; border-radius:12px; margin:4px; display:inline-block; font-size:11px; font-weight:bold; border: 1px solid rgba(255,255,255,0.2);">{m_name.replace("-"," ").upper()}</span>'
-                    can_learn_html.append(badge)
-                    can_learn_set.add(m_name.replace("-", " ").title())
+                    badge = f'''
+                        <span style="
+                            background-color:{bg}; 
+                            color:white; 
+                            padding:5px 12px; 
+                            border-radius:15px; 
+                            margin:5px; 
+                            display:inline-block; 
+                            font-size:12px; 
+                            font-weight:bold; 
+                            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                        ">
+                            {m_name.replace("-"," ").upper()}
+                        </span>
+                    '''
+                    tm_badges.append(badge)
 
-            # Calculate Cannot Learn
-            cant_learn_list = sorted(list(all_tms - can_learn_set))
-
-            tm_col1, tm_col2 = st.columns(2)
-            with tm_col1:
-                st.success(f"✅ **Can Learn ({len(can_learn_html)})**")
-                st.markdown("".join(can_learn_html), unsafe_allow_html=True)
-            
-            with tm_col2:
-                st.error(f"❌ **Cannot Learn ({len(cant_learn_list)})**")
-                st.write(", ".join(cant_learn_list))
+            if tm_badges:
+                st.markdown("".join(tm_badges), unsafe_allow_html=True)
+            else:
+                st.info("No TM data found for this Pokémon.")
     else:
         st.error("Pokémon not found.")
+
+# Quick shortcut to see team count in sidebar
+st.sidebar.write(f"**Team Size:** {len(st.session_state['team'])}/6")
