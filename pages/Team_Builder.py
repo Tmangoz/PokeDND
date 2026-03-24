@@ -1,6 +1,21 @@
 import streamlit as st
 import requests
+# Hide the default sidebar navigation links here too
+st.markdown("""
+    <style>
+        [data-testid="stSidebarNav"] {display: none;}
+    </style>
+""", unsafe_allow_html=True)
 
+# --- SIDEBAR MENU ---
+st.sidebar.title("🎮 PokéDND Menu")
+
+if st.sidebar.button("🏠 Home Page", use_container_width=True):
+    st.switch_page("Home.py")
+
+# No need for a button to go to the page we are already on, 
+# but we can show the count!
+st.sidebar.info(f"Current Team Size: {len(st.session_state.get('team', []))}/6")
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide", initial_sidebar_state="expanded")
 
