@@ -47,18 +47,19 @@ st.markdown("""
 def get_move_power_bonus(power):
     if not power: return 0
     if 10 <= power <= 40: return 1
-    if 41 <= power <= 60: return 2
-    if 61 <= power <= 75: return 3
-    if 76 <= power <= 90: return 4
-    if 91 <= power <= 110: return 5
-    if 111 <= power <= 130: return 6
+    elif 41 <= power <= 60: return 2
+    elif 61 <= power <= 75: return 3
+    elif 76 <= power <= 90: return 4
+    elif 91 <= power <= 110: return 5
+    elif 111 <= power <= 130: return 6
     return 7 if power >= 131 else 0
 
 def render_type_badges(pokemon_data):
     badges = ""
-    for t in pokemon_data['types']:
-        c = TYPE_COLORS.get(t['type']['name'], "#777")
-        badges += f'<span class="type-badge" style="background-color: {c};">{t["type"]["name"]}</span>'
+    for t in pokemon_data.get('types', []):
+        t_name = t['type']['name']
+        c = TYPE_COLORS.get(t_name, "#777")
+        badges += f'<span class="type-badge" style="background-color: {c};">{t_name}</span>'
     return badges
 
 @st.cache_data(ttl=86400)
@@ -76,41 +77,35 @@ def get_type_modifier(move_type, defender_types):
 
 @st.cache_data(ttl=86400)
 def get_move_info(move_name):
-    try: return requests.get(f"https://pokeapi.co/api/v2/move/{move_name.lower().replace(' ', '-')}").json()
+    try:
+        url_name = move_name.lower().replace(' ', '-')
+        return requests.get(f"https://pokeapi.co/api/v2/move/{url_name}").json()
     except: return None
 
 @st.cache_data(ttl=86400)
 def get_all_learnable_moves(pokemon_name):
     try:
         res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_name.lower()}").json()
-        return sorted(list(set([m['move']['name'].replace("-", " ").title() for m in res['moves']])))
+        moves = [m['move']['name'].replace("-", " ").title() for m in res['moves']]
+        return sorted(list(set(moves)))
     except: return []
 
-# --- SIDEBAR MENU (RESTORED) ---
+# --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
-
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
     st.switch_page("app.py")
-
 team_count = len(st.session_state.get('team', []))
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
-
 if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
     st.switch_page("pages/Battle_Sim.py")
-
 st.sidebar.divider()
-
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
-    st.session_state['team'] = []
-    st.session_state['selected_moves'] = {}
-    st.session_state['shiny_states'] = {}
-    st.rerun()
+    st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.session_state['shiny_states'] = {}; st.rerun()
 
 # --- MAIN INTERFACE ---
 st.title("⚔️ Poke Camp Battle Sim")
 
-# Team Ribbon
 if st.session_state['team']:
     st.write("### 👥 Quick Select from Team")
     ribbon = st.columns(6)
@@ -133,12 +128,17 @@ def_data = requests.get(f"https://pokeapi.co/api/v2/pokemon/{def_name.lower()}")
 
 # Speed Banner
 if atk_data and def_data:
-    a_spd, d_spd = atk_data['stats'][5]['base_stat'] // 15, def_data['stats'][5]['base_stat'] // 15
+    a_spd = atk_data['stats'][5]['base_stat'] // 15
+    d_spd = def_data['stats'][5]['base_stat'] // 15
     first = atk_data['name'].capitalize() if a_spd >= d_spd else def_data['name'].capitalize()
     st.markdown(f'<div class="turn-order-banner">🏃 {first} attacks FIRST (Speed: {max(a_spd, d_spd)} vs {min(a_spd, d_spd)})</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
-all_p = [p['name'] for p in requests.get("https://pokeapi.co/api/v2/pokemon?limit=2000").json()['results']]
+# Fetching names list
+try:
+    all_p = [p['name'] for p in requests.get("https://pokeapi.co/api/v2/pokemon?limit=2000").json()['results']]
+except:
+    all_p = []
 
 with col1:
     st.subheader("🛡️ Attacker")
@@ -150,33 +150,35 @@ with col1:
         st.session_state['is_team_selection'] = any(p['name'] == val for p in st.session_state['team'])
         st.rerun()
 
-    attacker = atk_data
-    if attacker:
-        st.markdown(f"**HP:** {attacker['stats'][0]['base_stat']//10} | **Speed:** {attacker['stats'][5]['base_stat']//15} {render_type_badges(attacker)}", unsafe_allow_html=True)
-        st.image(attacker['sprites']['front_default'], width=120)
+    if atk_data:
+        st.markdown(f"**HP:** {atk_data['stats'][0]['base_stat']//10} | **Speed:** {atk_data['stats'][5]['base_stat']//15} {render_type_badges(atk_data)}", unsafe_allow_html=True)
+        st.image(atk_data['sprites']['front_default'], width=120)
 
 with col2:
     st.subheader("🎯 Target")
     defender_name = st.selectbox("Target Search", options=[""] + all_p, key="def_s", label_visibility="collapsed")
-    defender = def_data
-    if defender:
-        d_hp, d_spd = defender['stats'][0]['base_stat'] // 10, defender['stats'][5]['base_stat'] // 15
-        st.markdown(f"**HP:** {d_hp} | **Speed:** {d_spd} {render_type_badges(defender)}", unsafe_allow_html=True)
-        st.image(defender['sprites']['front_default'], width=120)
-        def_red = max(defender['stats'][2]['base_stat'], defender['stats'][4]['base_stat']) // 40
-        st.write(f"**Defensive Reduction:** -{def_red}")
+    if def_data:
+        d_hp = def_data['stats'][0]['base_stat'] // 10
+        d_spd = def_data['stats'][5]['base_stat'] // 15
+        st.markdown(f"**HP:** {d_hp} | **Speed:** {d_spd} {render_type_badges(def_data)}", unsafe_allow_html=True)
+        st.image(def_data['sprites']['front_default'], width=120)
+        d_stat = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat'])
+        st.write(f"**Defensive Reduction:** -{d_stat // 40}")
 
 # --- MOVE DISPLAY LOGIC ---
-if attacker and defender:
+if atk_data and def_data:
     st.divider()
     is_team = st.session_state.get('is_team_selection', False)
     
-    def handle_roll(m_name, m_data):
+    def handle_roll(m_name, m_info_data):
         d20 = random.randint(1, 20)
-        p_bon = get_move_power_bonus(m_data.get('power', 0))
-        a_bon = max(attacker['stats'][1]['base_stat'], attacker['stats'][3]['base_stat']) // 20
-        t_mod = get_type_modifier(m_data['type']['name'], [t['type']['name'] for t in defender['types']])
-        d_red = max(defender['stats'][2]['base_stat'], defender['stats'][4]['base_stat']) // 40
+        p_bon = get_move_power_bonus(m_info_data.get('power', 0))
+        a_stat = max(atk_data['stats'][1]['base_stat'], atk_data['stats'][3]['base_stat'])
+        a_bon = a_stat // 20
+        d_types = [t['type']['name'] for t in def_data['types']]
+        t_mod = get_type_modifier(m_info_data['type']['name'], d_types)
+        d_stat = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat'])
+        d_red = d_stat // 40
         
         if d20 >= 8:
             dmg = 0 if t_mod == -999 else max(0, a_bon + p_bon + t_mod + (5 if d20 == 20 else 0) - d_red)
@@ -194,23 +196,31 @@ if attacker and defender:
             m_info = get_move_info(m_name)
             if m_info:
                 p_bon = get_move_power_bonus(m_info.get('power', 0))
-                a_bon = max(attacker['stats'][1]['base_stat'], attacker['stats'][3]['base_stat']) // 20
-                t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in defender['types']])
-                d_red = max(defender['stats'][2]['base_stat'], defender['stats'][4]['base_stat']) // 40
-                expected = 0 if t_mod == -999 else max(0, a_bon + p_bon + t_mod - d_red)
-                
-                with m_cols[i]:
+                a_stat = max(atk_data['stats'][1]['base_stat'], atk_data['stats'][3]['base_stat'])
+                t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in def_data['types']])
+                d_stat = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat'])
+                expected = 0 if t_mod == -999 else max(0, (a_stat // 20) + p_bon + t_mod - (d_stat // 40))
+                with m_cols[i % 4]:
                     st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(m_info["type"]["name"],"#444")};">{m_name.upper()}</b><br>Dmg: {expected}</div>', unsafe_allow_html=True)
                     if st.button("Roll", key=f"roll_team_{i}", use_container_width=True):
                         handle_roll(m_name, m_info)
     else:
         st.subheader("🔍 All Learnable Moves")
-        all_learnable = get_all_learnable_moves(attacker['name'])
+        all_learnable = get_all_learnable_moves(atk_data['name'])
         selected_m = st.selectbox("Search and Pick a Move", options=[""] + all_learnable)
         if selected_m:
             m_info = get_move_info(selected_m)
             if m_info:
                 p_bon = get_move_power_bonus(m_info.get('power', 0))
-                a_bon = max(attacker['stats'][1]['base_stat'], attacker['stats'][3]['base_stat']) // 20
-                t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in defender['types']])
-                d_red = max(defender['stats'][2]['base_stat'], defender
+                a_stat = max(atk_data['stats'][1]['base_stat'], atk_data['stats'][3]['base_stat'])
+                t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in def_data['types']])
+                d_stat = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat'])
+                expected = 0 if t_mod == -999 else max(0, (a_stat // 20) + p_bon + t_mod - (d_stat // 40))
+                c1, c2, c3 = st.columns([1, 2, 1])
+                with c2:
+                    st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(m_info["type"]["name"],"#444")};">{selected_m.upper()}</b><br>Pwr: {m_info.get("power") or "-"}<br>Dmg: {expected}</div>', unsafe_allow_html=True)
+                    if st.button("Roll Attack", key="roll_custom", use_container_width=True):
+                        handle_roll(selected_m, m_info)
+
+    if 'last_log' in st.session_state:
+        st.markdown(f'<div class="battle-log">{st.session_state["last_log"]}</div>', unsafe_allow_html=True)
