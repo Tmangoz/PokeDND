@@ -9,37 +9,26 @@ if 'team' not in st.session_state:
     st.session_state['team'] = []
 if 'selected_moves' not in st.session_state:
     st.session_state['selected_moves'] = {}
+if 'shiny_states' not in st.session_state:
+    st.session_state['shiny_states'] = {}
 
 # 2. Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
         
-        /* Centered Move Bar Styling */
         .move-bar-centered {
-            color: white;
-            padding: 8px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: bold;
-            margin-top: 4px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            border-bottom: 3px solid rgba(0,0,0,0.2);
-            text-transform: uppercase;
+            color: white; padding: 8px 10px; border-radius: 6px;
+            font-size: 11px; font-weight: bold; margin-top: 4px;
+            height: 32px; display: flex; align-items: center;
+            justify-content: center; text-align: center;
+            border-bottom: 3px solid rgba(0,0,0,0.2); text-transform: uppercase;
         }
         
         .stat-label { font-size: 12px; font-weight: bold; margin-bottom: -5px; }
         
-        /* Centering the image in its column */
         .img-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
+            display: flex; justify-content: center; align-items: center; height: 100%;
         }
         
         .analysis-label { font-size: 10px; margin-bottom: 2px; margin-top: 5px; }
@@ -116,7 +105,7 @@ team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
-    st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.rerun()
+    st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.session_state['shiny_states'] = {}; st.rerun()
 
 # --- MAIN PAGE ---
 st.title("🏆 PokéDND Team Builder")
@@ -141,20 +130,33 @@ else:
 
     for i, p_data in enumerate(st.session_state['team']):
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
+        if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
         
         with cols[i % 3]:
             with st.container(border=True):
-                # Header
-                h1, h2 = st.columns([5, 1])
+                # Header with Delete and Shiny Toggle
+                h1, h2, h3 = st.columns([4, 1, 1])
                 h1.subheader(p_data['name'].capitalize())
-                if h2.button("🗑️", key=f"rem_p_{i}"):
-                    st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
+                
+                # Shiny Toggle Button ✨
+                shiny_label = "✨" if not st.session_state['shiny_states'][i] else "🌟"
+                if h2.button(shiny_label, key=f"shiny_{i}", help="Toggle Shiny Form"):
+                    st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
+                    st.rerun()
+                
+                if h3.button("🗑️", key=f"rem_p_{i}"):
+                    st.session_state['team'].pop(i)
+                    st.session_state['selected_moves'].pop(i, None)
+                    st.session_state['shiny_states'].pop(i, None)
+                    st.rerun()
 
                 # Row 1: Image (Left) and Stats (Right)
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
                     st.markdown('<div class="img-container">', unsafe_allow_html=True)
-                    st.image(p_data['sprites']['front_default'], width=180)
+                    # Switch sprite based on shiny state
+                    sprite_type = 'front_shiny' if st.session_state['shiny_states'][i] else 'front_default'
+                    st.image(p_data['sprites'][sprite_type], width=180)
                     st.markdown('</div>', unsafe_allow_html=True)
                 with r1c2:
                     for s in p_data['stats']:
