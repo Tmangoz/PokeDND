@@ -29,18 +29,16 @@ st.markdown("""
             font-weight: bold;
             display: inline-block;
             text-align: center;
-            width: 130px; /* Fixed width for alignment */
+            width: 135px; /* Fixed width for alignment */
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             border-bottom: 3px solid rgba(0,0,0,0.3);
         }
         
-        /* Scrollable TM Box */
+        /* Full-length TM Box (No Scroll) */
         .tm-grid {
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
-            max-height: 350px;
-            overflow-y: auto;
             padding: 15px;
             background: rgba(255,255,255,0.05);
             border-radius: 10px;
@@ -91,7 +89,7 @@ if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_widt
 # --- MAIN INTERFACE ---
 st.title("🔍 Pokémon Explorer")
 all_names = get_all_pokemon_names()
-search_query = st.selectbox("Search for a Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Start typing a name...", index=0)
+search_query = st.selectbox("Search for a Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Start typing...", index=0)
 
 if search_query:
     p_data = get_pokemon_data(search_query)
@@ -135,10 +133,11 @@ if search_query:
             st.divider()
             st.write("### 📀 Learnable TMs")
             
-            # Filter and sort TM moves
+            # Filter for TMs
             tm_moves = [m for m in p_data['moves'] if any(v['move_learn_method']['name'] == 'machine' for v in m['version_group_details'])]
             
             if tm_moves:
+                # REMOVED SCROLL: The grid now expands to show everything
                 move_html = '<div class="tm-grid">'
                 for m in sorted(tm_moves, key=lambda x: x['move']['name']):
                     m_name = m['move']['name'].replace("-", " ").upper()
@@ -149,7 +148,7 @@ if search_query:
                 move_html += '</div>'
                 st.markdown(move_html, unsafe_allow_html=True)
             else:
-                st.info("No TMs found for this Pokémon.")
+                st.info("No TMs found.")
     else:
         st.error("Pokémon not found.")
 else:
