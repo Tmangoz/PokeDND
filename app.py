@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # 1. Page Config
-st.set_page_config(page_title="PokéDND Explorer", layout="wide")
+st.set_page_config(page_title="PokéDND", layout="wide")
 
 # 2. Advanced Styling
 st.markdown("""
