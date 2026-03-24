@@ -4,40 +4,83 @@ import requests
 # 1. Page Config
 st.set_page_config(page_title="PokéDND Explorer", layout="wide")
 
-# 2. Hide Default Sidebar Navigation & Custom CSS
+# 2. Advanced Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
-        .stat-text { font-size: 16px; margin-bottom: 5px; }
+        
+        /* Centering Container for Image and Button */
+        .centered-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+        }
+        
+        /* TM Badge Styling */
+        .move-badge {
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            display: inline-block;
+            text-align: center;
+            width: 130px; /* Fixed width for alignment */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            border-bottom: 3px solid rgba(0,0,0,0.3);
+        }
+        
+        /* Scrollable TM Box */
+        .tm-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            max-height: 350px;
+            overflow-y: auto;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. API Fetching Functions
+TYPE_COLORS = {
+    "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
+    "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
+    "flying": "#A890F0", "psychic": "#F85888", "bug": "#A8B820", "rock": "#B8A038",
+    "ghost": "#705898", "dragon": "#7038F8", "dark": "#705848", "steel": "#B8B8D0",
+    "fairy": "#EE99AC", "normal": "#A8A878"
+}
+
+# 3. Cached Data Fetching
 @st.cache_data(ttl=86400)
 def get_all_pokemon_names():
     try:
         url = "https://pokeapi.co/api/v2/pokemon?limit=2000"
-        response = requests.get(url).json()
-        return [p['name'] for p in response['results']]
-    except:
-        return []
+        return [p['name'] for p in requests.get(url).json()['results']]
+    except: return []
 
 @st.cache_data(ttl=86400)
 def get_pokemon_data(name):
     if not name: return None
-    url = f"https://pokeapi.co/api/v2/pokemon/{name.lower()}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
+    res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{name.lower()}")
+    return res.json() if res.status_code == 200 else None
 
-# 4. Session State Initialization
-if 'team' not in st.session_state:
-    st.session_state['team'] = []
+@st.cache_data(ttl=86400)
+def get_move_info(move_url):
+    try: return requests.get(move_url).json()
+    except: return None
+
+# 4. Session State
+if 'team' not in st.session_state: st.session_state['team'] = []
 
 # --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
-
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
     st.switch_page("app.py")
 
@@ -45,81 +88,69 @@ team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
 
-st.sidebar.divider()
-st.sidebar.info(f"Party: {team_count} / 6")
-
 # --- MAIN INTERFACE ---
 st.title("🔍 Pokémon Explorer")
-
 all_names = get_all_pokemon_names()
-
-search_query = st.selectbox(
-    "Search for a Pokémon:",
-    options=[""] + all_names,
-    format_func=lambda x: x.capitalize() if x else "Type to search (e.g. Charizard)...",
-    index=0
-)
+search_query = st.selectbox("Search for a Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Start typing a name...", index=0)
 
 if search_query:
-    with st.spinner(f"Fetching {search_query.capitalize()}..."):
-        p_data = get_pokemon_data(search_query)
-        
+    p_data = get_pokemon_data(search_query)
     if p_data:
         st.divider()
-        # Layout: 2 parts for Image, 3 parts for Stats/Moves
         col1, col2 = st.columns([2, 3])
         
         with col1:
-            # High-res Official Artwork at 400px
-            artwork_url = p_data['sprites']['other']['official-artwork']['front_default']
-            st.image(artwork_url if artwork_url else p_data['sprites']['front_default'], width=400)
+            # CENTERED IMAGE & BUTTON
+            artwork = p_data['sprites']['other']['official-artwork']['front_default']
+            img_url = artwork if artwork else p_data['sprites']['front_default']
             
-            # Add to Team Button
+            st.markdown(f'''
+                <div class="centered-container">
+                    <img src="{img_url}" width="380" style="margin-bottom: 20px;">
+                </div>
+            ''', unsafe_allow_html=True)
+            
             if st.button(f"➕ Add {p_data['name'].capitalize()} to Team", use_container_width=True, type="primary"):
                 if len(st.session_state['team']) < 6:
                     if any(p['name'] == p_data['name'] for p in st.session_state['team']):
                         st.warning("Already in your team!")
                     else:
-                        st.session_state['team'].append(p_data)
-                        st.success(f"Added {p_data['name'].capitalize()}!")
-                        st.rerun()
-                else:
-                    st.error("Team is full! (Max 6)")
+                        st.session_state['team'].append(p_data); st.success("Added!"); st.rerun()
+                else: st.error("Team is full!")
 
         with col2:
             st.header(p_data['name'].capitalize())
-            
-            # Types displayed as badges
-            type_badges = "".join([f'<span style="background-color:#555; color:white; padding:4px 12px; border-radius:15px; margin-right:8px; font-weight:bold; font-size:14px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
+            type_badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t["type"]["name"],"#777")}; color:white; padding:5px 15px; border-radius:20px; margin-right:10px; font-weight:bold; font-size:16px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
             st.markdown(type_badges, unsafe_allow_html=True)
             
             st.write("### Base Stats")
-            STAT_LABELS = {
-                "hp": "HP", "attack": "ATK", "defense": "DEF", 
-                "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"
-            }
-            
-            # Fixed the formatting for the stat columns
+            STAT_LABELS = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
             stat_cols = st.columns(2)
             for idx, s in enumerate(p_data['stats']):
-                label = STAT_LABELS.get(s['stat']['name'], s['stat']['name'].upper())
-                val = s['base_stat']
+                label, val = STAT_LABELS.get(s['stat']['name'], s['stat']['name'].upper()), s['base_stat']
                 with stat_cols[idx % 2]:
                     st.markdown(f"**{label}:** {val}")
                     st.progress(min(val / 160, 1.0))
 
             st.divider()
+            st.write("### 📀 Learnable TMs")
             
-            # Learnable Moves Section
-            st.write("### 📜 Learnable Moves")
-            moves = sorted([m['move']['name'].replace("-", " ").title() for m in p_data['moves']])
+            # Filter and sort TM moves
+            tm_moves = [m for m in p_data['moves'] if any(v['move_learn_method']['name'] == 'machine' for v in m['version_group_details'])]
             
-            with st.expander(f"View all {len(moves)} moves for {p_data['name'].capitalize()}"):
-                m_cols = st.columns(3)
-                for i, m_name in enumerate(moves):
-                    m_cols[i % 3].write(f"• {m_name}")
-
+            if tm_moves:
+                move_html = '<div class="tm-grid">'
+                for m in sorted(tm_moves, key=lambda x: x['move']['name']):
+                    m_name = m['move']['name'].replace("-", " ").upper()
+                    m_data = get_move_info(m['move']['url'])
+                    m_type = m_data['type']['name'] if m_data else "normal"
+                    bg = TYPE_COLORS.get(m_type, "#777")
+                    move_html += f'<div class="move-badge" style="background-color: {bg};">{m_name}</div>'
+                move_html += '</div>'
+                st.markdown(move_html, unsafe_allow_html=True)
+            else:
+                st.info("No TMs found for this Pokémon.")
     else:
         st.error("Pokémon not found.")
 else:
-    st.info("Use the search bar above to find a Pokémon and view its stats.")
+    st.info("Select a Pokémon above to get started.")
