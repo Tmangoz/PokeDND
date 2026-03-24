@@ -57,6 +57,20 @@ def get_type_modifier(move_type, defender_types):
         return mod
     except: return 0
 
+@st.cache_data(ttl=86400)
+def get_all_learnable_moves(pokemon_name):
+    try:
+        url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_name.lower()}"
+        res = requests.get(url).json()
+        # Filter for Level-up or Machine (TM) moves
+        move_list = []
+        for m in res['moves']:
+            learn_methods = [v['move_learn_method']['name'] for v in m['version_group_details']]
+            if 'level-up' in learn_methods or 'machine' in learn_methods:
+                move_list.append(m['move']['name'].replace("-", " ").title())
+        return sorted(list(set(move_list)))
+    except: return []
+
 # --- SIDEBAR ---
 st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
@@ -95,13 +109,11 @@ with col1:
         spa_val = attacker['stats'][3]['base_stat']
         max_atk = max(atk_val, spa_val)
         stat_name = "ATK" if atk_val >= spa_val else "SpA"
-        
         atk_bonus = max_atk // 20
-        speed_val = attacker['stats'][5]['base_stat'] // 15
         
-        team_idx = next((i for i, p in enumerate(st.session_state['team']) if p['name'] == attacker['name']), None)
-        moves_list = st.session_state.get('selected_moves', {}).get(team_idx, []) if team_idx is not None else [m['move']['name'].title() for m in attacker['moves']]
-        selected_move = st.selectbox("Choose Move", options=[""] + moves_list)
+        # Fetch ALL Learnable Moves (Natural + TM)
+        all_learnable = get_all_learnable_moves(attacker['name'])
+        selected_move = st.selectbox("Choose Move:", options=[""] + all_learnable)
 
 # --- COLUMN 2: TARGET ---
 with col2:
@@ -131,11 +143,10 @@ if attacker and selected_move:
         st.markdown(f"""
         <div class="breakdown-box">
             <div><b>Stat Bonus</b> ({stat_name}: {max_atk}) <span class="bonus-val">+{atk_bonus}</span></div>
-            <div style="margin-top:5px;"><b>Move Power</b> ({m_data.get('power', 0)} Pwr) <span class="bonus-val">+{p_bonus}</span></div>
+            <div style="margin-top:5px;"><b>Move Power</b> ({m_data.get('power', 0) if m_data.get('power') else 'Status'}) <span class="bonus-val">+{p_bonus}</span></div>
             <div style="margin-top:5px;"><b>Type Advantage</b> <span class="bonus-val">{'0' if type_mod == -999 else (f'+{type_mod}' if type_mod > 0 else type_mod)}</span></div>
             <hr style="margin: 10px 0; border-color: rgba(255,255,255,0.1);">
             <div style="font-size: 1.1em;"><b>Total Pre-Roll Bonus:</b> <span class="bonus-val">+{atk_bonus + p_bonus + (type_mod if type_mod != -999 else 0)}</span></div>
-            <div style="font-size: 0.8em; color: #888; margin-top: 5px;">* Nat 20 will add an additional +5 to this total.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -144,7 +155,6 @@ st.divider()
 # --- BATTLE ENGINE ---
 if st.button("🎲 ROLL ATTACK", type="primary", use_container_width=True):
     if attacker and defender and selected_move:
-        # Re-fetch move logic for the log
         m_url = f"https://pokeapi.co/api/v2/move/{selected_move.lower().replace(' ', '-')}"
         m_data = requests.get(m_url).json()
         
@@ -161,16 +171,13 @@ if st.button("🎲 ROLL ATTACK", type="primary", use_container_width=True):
             d_reduction = max(defender['stats'][2]['base_stat'], defender['stats'][4]['base_stat']) // 40
             
             if type_mod == -999:
-                final_damage = 0
                 log += "🚫 **IMMUNE!** Target took 0 damage.<br>"
             else:
                 final_damage = p_bonus + a_bonus + type_mod + crit_bonus - d_reduction
                 final_damage = max(0, final_damage)
-                
                 log += f"💥 **HIT!** Dealt **{final_damage} damage**!<br>"
                 if d20 == 20: log += "⭐ **NAT 20:** +5 Critical Damage applied!"
                 st.balloons()
-            
             st.markdown(f'<div class="battle-log">{log}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="battle-log">❌ **MISS!** ({d20} is less than 8)</div>', unsafe_allow_html=True)
