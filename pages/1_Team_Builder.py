@@ -24,38 +24,41 @@ def get_move_details(move_url):
         return requests.get(move_url).json()
     except: return None
 
-def calculate_defensive_chart(pokemon_types):
-    """Defense: What hits THIS pokemon's body"""
-    weak, resist, immune = [], [], []
-    multipliers = {}
+def calculate_full_analysis(pokemon_types):
+    """Calculates all relations for the grid."""
+    defense = {"weak": [], "resist": [], "immune": []}
+    offense = {"super": [], "not_very": [], "no_effect": []}
+    
+    def_mults = {}
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
-            for t in rel['double_damage_from']: multipliers[t['name']] = multipliers.get(t['name'], 1.0) * 2.0
-            for t in rel['half_damage_from']: multipliers[t['name']] = multipliers.get(t['name'], 1.0) * 0.5
-            for t in rel['no_damage_from']: multipliers[t['name']] = 0.0
-    for t, m in multipliers.items():
-        if m > 1.0: weak.append(t)
-        elif 0.0 < m < 1.0: resist.append(t)
-        elif m == 0.0: immune.append(t)
-    return sorted(weak), sorted(resist), sorted(immune)
+            # Defensive (Damage FROM)
+            for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
+            for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
+            for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
+            # Offensive (Damage TO)
+            for t in rel['double_damage_to']: offense["super"].append(t['name'])
+            for t in rel['half_damage_to']: offense["not_very"].append(t['name'])
+            for t in rel['no_damage_to']: offense["no_effect"].append(t['name'])
 
-def calculate_base_offensive_coverage(pokemon_types):
-    """Offense: What THIS pokemon's inherent types are strong/weak against"""
-    super_effective, no_effect = set(), set()
-    for t_info in pokemon_types:
-        data = get_type_data(t_info['type']['name'])
-        if data:
-            rel = data['damage_relations']
-            for t in rel['double_damage_to']: super_effective.add(t['name'])
-            for t in rel['no_damage_to']: no_effect.add(t['name'])
-    return sorted(list(super_effective)), sorted(list(no_effect))
+    for t, m in def_mults.items():
+        if m > 1.0: defense["weak"].append(t)
+        elif 0.0 < m < 1.0: defense["resist"].append(t)
+        elif m == 0.0: defense["immune"].append(t)
+            
+    return defense, {k: sorted(list(set(v))) for k, v in offense.items()}
 
-def render_type_badges(types, label, color):
+def render_grid_section(types, label, bg_color):
     if not types: return ""
-    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 5px; border-radius:4px; margin:2px; font-size:9px; display:inline-block;">{t.upper()}</span>' for t in types])
-    return f'<div style="margin-top:4px;"><b style="color:{color}; font-size:10px;">{label}:</b><br>{badges}</div>'
+    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 4px; border-radius:3px; margin:2px; font-size:9px; display:inline-block; border:1px solid rgba(255,255,255,0.2);">{t.upper()}</span>' for t in types])
+    return f'''
+    <div style="background-color:{bg_color}; padding:5px; border:1px solid #444; margin-bottom:2px;">
+        <div style="font-size:10px; font-weight:bold; margin-bottom:3px; color:white;">{label}</div>
+        {badges}
+    </div>
+    '''
 
 def add_move_callback(pokemon_index):
     val = st.session_state[f"search_{pokemon_index}"]
@@ -75,7 +78,7 @@ else:
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         
         with st.container(border=True):
-            col_info, col_moves, col_chart = st.columns([1.2, 2, 1.8])
+            col_info, col_moves, col_chart = st.columns([1, 1.8, 2.2])
             
             with col_info:
                 st.subheader(p_data['name'].capitalize())
@@ -98,30 +101,34 @@ else:
                     if m_details:
                         bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
                         with m_grid[idx % 2]:
-                            st.markdown(f'<div style="background-color:{bg}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:10px; font-weight:bold;">{m_name.upper()}<br>PWR: {m_details.get("power") or "—"}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="background-color:{bg}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:10px; font-weight:bold;">{m_name.upper()}</div>', unsafe_allow_html=True)
                             if st.button("✖", key=f"del_{i}_{idx}", use_container_width=True):
                                 st.session_state['selected_moves'][i].pop(idx); st.rerun()
 
             with col_chart:
-                st.write("**Type Analysis**")
-                # Defense (Weaknesses based on Pokemon's types)
-                weak, resist, immune_def = calculate_defensive_chart(p_data['types'])
-                # Offense (Strengths based on Pokemon's inherent types)
-                super_eff, immune_off = calculate_base_offensive_coverage(p_data['types'])
+                defense, offense = calculate_full_analysis(p_data['types'])
                 
-                chart_html = f'''
-                    <div style="background-color:rgba(255,255,255,0.05); padding:8px; border-radius:10px; border: 1px solid rgba(255,255,255,0.1);">
-                        <div style="text-align:center; border-bottom:1px solid #444; margin-bottom:5px; font-size:12px; font-weight:bold;">DEFENSE (Incoming Damage)</div>
-                        {render_type_badges(weak, "WEAK TO", "#ff4b4b")}
-                        {render_type_badges(resist, "RESISTS", "#2ecc71")}
-                        {render_type_badges(immune_def, "IMMUNE TO", "#f1c40f")}
-                        
-                        <div style="text-align:center; border-bottom:1px solid #444; margin-top:10px; margin-bottom:5px; font-size:12px; font-weight:bold;">OFFENSE (Base Type Potential)</div>
-                        {render_type_badges(super_eff, "SUPER EFFECTIVE VS", "#3498db")}
-                        {render_type_badges(immune_off, "NO EFFECT VS", "#888")}
+                # Create a grid layout using HTML/CSS
+                grid_html = f'''
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; background-color: #262730; padding: 5px; border-radius: 5px;">
+                    <div style="grid-column: span 2; text-align: center; font-size: 12px; font-weight: bold; background: #111; padding: 3px;">TYPE EFFECTIVENESS MATRIX</div>
+                    
+                    <div>
+                        <div style="text-align: center; font-size: 10px; color: #ff4b4b; background: #331111; padding: 2px;">DEFENDER (Incoming)</div>
+                        {render_grid_section(defense['weak'], "WEAK (2x)", "#441111")}
+                        {render_grid_section(defense['resist'], "RESIST (1/2x)", "#113311")}
+                        {render_grid_section(defense['immune'], "IMMUNE (0x)", "#222211")}
                     </div>
+
+                    <div>
+                        <div style="text-align: center; font-size: 10px; color: #3498db; background: #112233; padding: 2px;">ATTACKER (Outgoing)</div>
+                        {render_grid_section(offense['super'], "SUPER (2x)", "#112244")}
+                        {render_grid_section(offense['not_very'], "WEAK (1/2x)", "#331111")}
+                        {render_grid_section(offense['no_effect'], "NO EFFECT (0x)", "#222")}
+                    </div>
+                </div>
                 '''
-                st.markdown(chart_html, unsafe_allow_html=True)
+                st.markdown(grid_html, unsafe_allow_html=True)
 
     if st.button("Clear Full Team", type="primary"):
         st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.rerun()
