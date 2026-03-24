@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import os 
 
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide")
@@ -42,6 +41,8 @@ st.markdown("""
             align-items: center;
             height: 100%;
         }
+        
+        .analysis-label { font-size: 10px; margin-bottom: 2px; margin-top: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -152,7 +153,6 @@ else:
                 # Row 1: Image (Left) and Stats (Right)
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
-                    # Centered and bigger image inside the left column
                     st.markdown('<div class="img-container">', unsafe_allow_html=True)
                     st.image(p_data['sprites']['front_default'], width=180)
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -169,12 +169,16 @@ else:
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown(f'<div style="font-size:11px; font-weight:bold; color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div style="font-size:10px;"><b>Weak:</b><br>{render_badges(weak)}</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div style="font-size:10px;"><b>Resist:</b><br>{render_badges(resist)}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="analysis-label"><b>Weak Against:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(weak), unsafe_allow_html=True)
+                    st.markdown(f'<div class="analysis-label"><b>Resistant to:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(resist), unsafe_allow_html=True)
                 with t_col2:
                     st.markdown(f'<div style="font-size:11px; font-weight:bold; color:#3498db;">⚔️ OFFENSE</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div style="font-size:10px;"><b>Super:</b><br>{render_badges(super_eff)}</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div style="font-size:10px;"><b>Resisted:</b><br>{render_badges(not_very)}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="analysis-label"><b>Super Effective:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(super_eff), unsafe_allow_html=True)
+                    st.markdown(f'<div class="analysis-label"><b>Not Very Effective Against:</b></div>', unsafe_allow_html=True)
+                    st.markdown(render_badges(not_very), unsafe_allow_html=True)
 
                 st.divider()
 
