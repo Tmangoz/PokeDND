@@ -12,7 +12,25 @@ if 'last_log' not in st.session_state: st.session_state['last_log'] = ""
 if 'last_atk_name' not in st.session_state: st.session_state['last_atk_name'] = ""
 if 'last_def_name' not in st.session_state: st.session_state['last_def_name'] = ""
 
-# --- 3. STYLING ---
+# --- 3. CALLBACKS (The Solution for Duplicates) ---
+def on_atk_move_change():
+    """Triggered when a move is picked for the attacker."""
+    move = st.session_state.add_atk_m
+    if move and move not in st.session_state['atk_tmp']:
+        if len(st.session_state['atk_tmp']) < 4:
+            st.session_state['atk_tmp'].append(move)
+    # This effectively "clears" the box for the next run
+    st.session_state.add_atk_m = ""
+
+def on_def_move_change():
+    """Triggered when a move is picked for the target."""
+    move = st.session_state.add_def_m
+    if move and move not in st.session_state['def_moves_list']:
+        if len(st.session_state['def_moves_list']) < 4:
+            st.session_state['def_moves_list'].append(move)
+    st.session_state.add_def_m = ""
+
+# --- 4. STYLING ---
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
     "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
@@ -31,7 +49,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. DATA HELPERS ---
+# --- 5. HELPERS ---
 @st.cache_data(ttl=86400)
 def get_poke_data(name):
     if not name: return None
@@ -71,14 +89,14 @@ def get_type_mod(move_type, defender_types):
         return mod
     except: return 0
 
-# --- 5. SIDEBAR ---
+# --- 6. SIDEBAR ---
 st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home", use_container_width=True): st.switch_page("app.py")
 if st.sidebar.button("➡️ Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 st.sidebar.divider()
 force_crit = st.sidebar.checkbox("🎯 Force Nat 20")
 
-# --- 6. TOP NAVIGATION ---
+# --- 7. TOP NAVIGATION ---
 st.title("⚔️ Poke Camp Battle Sim")
 if st.session_state.get('team'):
     ribbon = st.columns(6)
@@ -94,14 +112,13 @@ try:
 except:
     all_p = []
 
-# --- 7. COMBATANT SELECTION ---
+# --- 8. COMBATANT SELECTION ---
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🛡️ Attacker")
     atk_name = st.selectbox("Search Attacker", [""] + all_p, key="atk_sb")
     
-    # NEW: Reset moves if the Pokémon species changes
     if atk_name != st.session_state['last_atk_name']:
         st.session_state['atk_tmp'] = []
         st.session_state['last_atk_name'] = atk_name
@@ -115,20 +132,20 @@ with col1:
         team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == atk_name), None)
         if team_idx is not None:
             atk_moves = st.session_state['selected_moves'].get(team_idx, [])
+            st.info("📍 Loaded Team Moveset")
         else:
             learn_a = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in atk_data['moves']])))
-            new_m_a = st.selectbox("Add Move", [""] + learn_a, key="add_atk_m")
-            if new_m_a and new_m_a not in st.session_state['atk_tmp']:
-                if len(st.session_state['atk_tmp']) < 4:
-                    st.session_state['atk_tmp'].append(new_m_a)
+            # Callback ensures it clears on pick
+            st.selectbox("Add Move", [""] + learn_a, key="add_atk_m", on_change=on_atk_move_change)
             atk_moves = st.session_state['atk_tmp']
-            if st.button("Clear Attacker Moves"): st.session_state['atk_tmp'] = []; st.rerun()
+            if st.button("Clear Attacker Moves"): 
+                st.session_state['atk_tmp'] = []
+                st.rerun()
 
 with col2:
     st.subheader("🎯 Target")
     def_name = st.selectbox("Search Target", [""] + all_p, key="def_sb")
     
-    # NEW: Reset moves if the Target species changes
     if def_name != st.session_state['last_def_name']:
         st.session_state['def_moves_list'] = []
         st.session_state['last_def_name'] = def_name
@@ -142,16 +159,16 @@ with col2:
         def_team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == def_name), None)
         if def_team_idx is not None:
             def_moves = st.session_state['selected_moves'].get(def_team_idx, [])
+            st.info("📍 Loaded Team Moveset")
         else:
             learn_d = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in def_data['moves']])))
-            new_m_d = st.selectbox("Add Move", [""] + learn_d, key="add_def_m")
-            if new_m_d and new_m_d not in st.session_state['def_moves_list']:
-                if len(st.session_state['def_moves_list']) < 4:
-                    st.session_state['def_moves_list'].append(new_m_d)
+            st.selectbox("Add Move", [""] + learn_d, key="add_def_m", on_change=on_def_move_change)
             def_moves = st.session_state['def_moves_list']
-            if st.button("Clear Target Moves"): st.session_state['def_moves_list'] = []; st.rerun()
+            if st.button("Clear Target Moves"): 
+                st.session_state['def_moves_list'] = []
+                st.rerun()
 
-# --- 8. THE BATTLE GRIDS ---
+# --- 9. THE BATTLE GRIDS ---
 st.divider()
 if atk_data and def_data:
     aspd, dspd = atk_data['stats'][5]['base_stat']//15, def_data['stats'][5]['base_stat']//15
@@ -173,7 +190,7 @@ if atk_data and def_data:
             if st.button(f"Roll {m_name}", key=f"r_{key_pre}_{i}", use_container_width=True):
                 roll = 20 if force_crit else random.randint(1, 20)
                 final = 0 if tm == -999 else max(0, ab + pb + tm + (5 if roll == 20 else 0) - dr)
-                st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** dealt **{final}** damage!"
+                st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** deals **{final}** damage with **{m_name}**!"
                 st.rerun()
 
     with g1:
