@@ -42,7 +42,7 @@ st.markdown("""
         .type-badge { color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-left: 5px; }
         .move-card { border: 1px solid #444; border-radius: 8px; padding: 10px; text-align: center; background: rgba(255,255,255,0.03); min-height: 155px; margin-bottom: 10px; }
         .total-dmg { font-size: 16px; color: #978fdb; font-weight: bold; }
-        .crit-toggle { margin-top: -15px; margin-bottom: 10px; }
+        .status-text { font-size: 16px; color: #ffcc00; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -91,14 +91,13 @@ st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home", use_container_width=True): st.switch_page("app.py")
 if st.sidebar.button("➡️ Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 
-# --- 7. TEAM RIBBON (FIXED IMAGES) ---
+# --- 7. TEAM RIBBON ---
 st.title("⚔️ Poke Camp Battle Sim")
 if st.session_state.get('team'):
     st.write("### 👥 Your Team")
     ribbon = st.columns(6)
     for i, p in enumerate(st.session_state['team']):
         with ribbon[i]:
-            # Fetch fresh sprite data to ensure visibility
             img_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{p['id']}.png"
             st.image(img_url, width=80)
             if st.button(p['name'].capitalize(), key=f"rib_{i}", use_container_width=True):
@@ -118,7 +117,6 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("🛡️ Attacker")
     atk_name = st.selectbox("Search Attacker", [""] + all_p, key="atk_sb")
-    
     if atk_name != st.session_state['last_atk_name']:
         st.session_state['atk_tmp'] = []
         st.session_state['last_atk_name'] = atk_name
@@ -132,24 +130,20 @@ with col1:
         team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == atk_name), None)
         if team_idx is not None:
             atk_moves = st.session_state['selected_moves'].get(team_idx, [])
-            st.info("📍 Team Moveset Active")
         else:
             learn_a = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in atk_data['moves']])))
             st.selectbox("Add Move", [""] + learn_a, key="add_atk_m", on_change=on_atk_move_change)
             atk_moves = st.session_state['atk_tmp']
             
-        # Attacker Controls
         c_a1, c_a2 = st.columns(2)
         with c_a1: atk_crit = st.checkbox("🎯 Force Crit", key="atk_crit_toggle")
         with c_a2: 
             if st.button("Clear Moves", key="cl_atk"): 
-                st.session_state['atk_tmp'] = []
-                st.rerun()
+                st.session_state['atk_tmp'] = []; st.rerun()
 
 with col2:
     st.subheader("🎯 Target")
     def_name = st.selectbox("Search Target", [""] + all_p, key="def_sb")
-    
     if def_name != st.session_state['last_def_name']:
         st.session_state['def_moves_list'] = []
         st.session_state['last_def_name'] = def_name
@@ -163,19 +157,16 @@ with col2:
         def_team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == def_name), None)
         if def_team_idx is not None:
             def_moves = st.session_state['selected_moves'].get(def_team_idx, [])
-            st.info("📍 Team Moveset Active")
         else:
             learn_d = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in def_data['moves']])))
             st.selectbox("Add Move", [""] + learn_d, key="add_def_m", on_change=on_def_move_change)
             def_moves = st.session_state['def_moves_list']
             
-        # Target Controls
         c_d1, c_d2 = st.columns(2)
         with c_d1: def_crit = st.checkbox("🎯 Force Crit", key="def_crit_toggle")
         with c_d2:
             if st.button("Clear Moves", key="cl_def"): 
-                st.session_state['def_moves_list'] = []
-                st.rerun()
+                st.session_state['def_moves_list'] = []; st.rerun()
 
 # --- 9. THE BATTLE GRIDS ---
 st.divider()
@@ -189,18 +180,43 @@ if atk_data and def_data:
     def render_card(m_name, p_atk, p_def, key_pre, i, force_nat_20):
         mi = get_move_info(m_name)
         if mi:
-            pb, ab = get_move_power_bonus(mi.get('power', 0)), max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
-            tm = get_type_mod(mi['type']['name'], [t['type']['name'] for t in p_def['types']])
-            dr = max(p_def['stats'][2]['base_stat'], p_def['stats'][4]['base_stat']) // 40
-            c_b = 5 if force_nat_20 else 0
-            exp = 0 if tm == -999 else max(0, ab + pb + tm + c_b - dr)
+            # Check Move Category
+            move_cat = mi.get('damage_class', {}).get('name', 'physical')
             
-            st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{m_name.upper()}</b><br><small>Stat:+{ab} Pwr:+{pb} Type:{tm}</small><br><small>Crit:{c_b} Reduct:-{dr}</small><br><div class="total-dmg">Dmg: {exp}</div></div>', unsafe_allow_html=True)
-            if st.button(f"Roll {m_name}", key=f"r_{key_pre}_{i}", use_container_width=True):
-                roll = 20 if force_nat_20 else random.randint(1, 20)
-                final = 0 if tm == -999 else max(0, ab + pb + tm + (5 if roll == 20 else 0) - dr)
-                st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** deals **{final}** damage with **{m_name}**!"
-                st.rerun()
+            if move_cat == 'status':
+                # STATUS MOVE UI
+                st.markdown(f"""
+                <div class="move-card">
+                    <b style="color:{TYPE_COLORS.get(mi['type']['name'],"#444")};">{m_name.upper()}</b><br>
+                    <div style="font-size:11px; color:#aaa;">Category: STATUS</div>
+                    <div class="status-text">EFFECT MOVE</div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"Roll {m_name}", key=f"r_{key_pre}_{i}", use_container_width=True):
+                    roll = 20 if force_nat_20 else random.randint(1, 20)
+                    if roll >= 8:
+                        st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** used **{m_name}**! It was successful."
+                    else: st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** used **{m_name}** but it missed!"
+                    st.rerun()
+            else:
+                # DAMAGE MOVE UI
+                pb, ab = get_move_power_bonus(mi.get('power', 0)), max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
+                tm = get_type_mod(mi['type']['name'], [t['type']['name'] for t in p_def['types']])
+                dr = max(p_def['stats'][2]['base_stat'], p_def['stats'][4]['base_stat']) // 40
+                c_b = 5 if force_nat_20 else 0
+                exp = 0 if tm == -999 else max(0, ab + pb + tm + c_b - dr)
+                
+                st.markdown(f"""
+                <div class="move-card"><b style="color:{TYPE_COLORS.get(mi['type']['name'],"#444")};">{m_name.upper()}</b><br>
+                <small>Stat:+{ab} Pwr:+{pb} Type:{tm}</small><br>
+                <small>Crit:{c_b} Reduct:-{dr}</small><br>
+                <div class="total-dmg">Dmg: {exp}</div></div>
+                """, unsafe_allow_html=True)
+                if st.button(f"Roll {m_name}", key=f"r_{key_pre}_{i}", use_container_width=True):
+                    roll = 20 if force_nat_20 else random.randint(1, 20)
+                    final = 0 if tm == -999 else max(0, ab + pb + tm + (5 if roll == 20 else 0) - dr)
+                    st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** dealt **{final}** damage with **{m_name}**!"
+                    st.rerun()
 
     with g1:
         st.write(f"**{atk_data['name'].capitalize()} Moves**")
