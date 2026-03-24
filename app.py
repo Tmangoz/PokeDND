@@ -103,7 +103,7 @@ if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_
     st.rerun()
 
 # --- MAIN INTERFACE ---
-st.title("🔍 Pokémon Explorer")
+st.title("🔍 Pokédex")
 all_names = get_all_pokemon_names()
 search_query = st.selectbox("Search for a Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Start typing...", index=0)
 
