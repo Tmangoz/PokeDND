@@ -129,7 +129,11 @@ else:
     cols = st.columns(3)
     STAT_MAP = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
 
-    for i, p_data in enumerate(st.session_state['team']):
+    # We iterate using a list to avoid index shifting issues during deletion
+    for i in range(len(st.session_state['team'])):
+        p_data = st.session_state['team'][i]
+        
+        # Ensure state keys exist for this index
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
         
@@ -138,11 +142,37 @@ else:
                 h1, h2, h3 = st.columns([4, 1, 1])
                 h1.subheader(p_data['name'].capitalize())
                 
+                # Shiny Toggle
                 shiny_label = "✨" if not st.session_state['shiny_states'][i] else "🌟"
                 if h2.button(shiny_label, key=f"shiny_{i}"):
-                    st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]; st.rerun()
+                    st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
+                    st.rerun()
+
+                # FIXED: Delete Pokemon Button
                 if h3.button("🗑️", key=f"rem_p_{i}"):
-                    st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
+                    # Remove the Pokémon
+                    st.session_state['team'].pop(i)
+                    
+                    # Rebuild state dictionaries to fix index shifting
+                    # We create new dicts based on the new order of the 'team' list
+                    new_moves = {}
+                    new_shiny = {}
+                    
+                    # Temporarily store old data to map it to new indices
+                    old_moves = st.session_state['selected_moves']
+                    old_shiny = st.session_state['shiny_states']
+                    
+                    # Filter out the deleted index and shift everyone else down
+                    # This ensures index 2 becomes index 1 if index 1 is deleted
+                    remaining_indices = [idx for idx in range(len(st.session_state['team']) + 1) if idx != i]
+                    
+                    for new_idx, old_idx in enumerate(remaining_indices):
+                        if old_idx in old_moves: new_moves[new_idx] = old_moves[old_idx]
+                        if old_idx in old_shiny: new_shiny[new_idx] = old_shiny[old_idx]
+                    
+                    st.session_state['selected_moves'] = new_moves
+                    st.session_state['shiny_states'] = new_shiny
+                    st.rerun()
 
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
@@ -158,7 +188,6 @@ else:
                 weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
                 st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:8px;"></div>', unsafe_allow_html=True)
                 
-                # RESTORED ANALYSIS COLUMNS
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown('<div class="column-header" style="color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
