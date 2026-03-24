@@ -1,10 +1,10 @@
 import streamlit as st
 import requests
 
-# 1. Page Config
+# 1. Page Config - Forces sidebar to stay open and uses wide layout
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
 
-# 2. Type Colors
+# 2. Type Colors Dictionary
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
     "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
@@ -13,10 +13,11 @@ TYPE_COLORS = {
     "fairy": "#EE99AC", "normal": "#A8A878"
 }
 
+# Initialize Team in Session State
 if 'team' not in st.session_state:
     st.session_state['team'] = []
 
-# --- CACHED FUNCTIONS ---
+# --- CACHED DATA FETCHING ---
 @st.cache_data(ttl=86400)
 def get_pokemon_data(name):
     try:
@@ -31,7 +32,25 @@ def get_move_type(move_url):
         return res['type']['name']
     except: return "normal"
 
-# --- UI ---
+@st.cache_data(ttl=86400)
+def get_evolution_info(pokemon_name):
+    try:
+        species_res = requests.get(f"https://pokeapi.co/api/v2/pokemon-species/{pokemon_name.lower().strip()}")
+        if species_res.status_code != 200: return None, None
+        evo_chain_url = species_res.json()['evolution_chain']['url']
+        evo_res = requests.get(evo_chain_url).json()
+        chain = evo_res['chain']
+        while chain and chain['species']['name'] != pokemon_name.lower().strip():
+            if chain['evolves_to']: chain = chain['evolves_to'][0]
+            else: break
+        if chain and chain['evolves_to']:
+            next_evo = chain['evolves_to'][0]
+            lvl = next_evo['evolution_details'][0].get('min_level') or "Special"
+            return next_evo['species']['name'], lvl
+    except: return None, None
+    return "No further evolution", None
+
+# --- MAIN UI ---
 st.title("🔍 Pokémon Explorer")
 
 search_name = st.text_input("Search Pokémon Name", value="Pikachu")
@@ -41,7 +60,9 @@ if search_name:
     
     if data:
         col1, col2 = st.columns([1, 2])
+        
         with col1:
+            # Official high-res artwork
             st.image(data['sprites']['other']['official-artwork']['front_default'], width=250)
             
             if st.button("➕ Add to Team"):
@@ -56,16 +77,35 @@ if search_name:
         
         with col2:
             st.header(data['name'].capitalize())
-            # Display stats in a compact list
+            # Display stats
             for s in data['stats']:
-                stat_name = s['stat']['name'].upper().replace("-", " ")
-                st.write(f"**{stat_name}**: {s['base_stat']}")
+                name = s['stat']['name'].upper().replace("-", " ")
+                val = s['base_stat']
+                st.write(f"**{name}**: {val}")
+                st.progress(min(val/150, 1.0))
 
+        # --- EVOLUTION SECTION ---
+        st.divider()
+        st.subheader("🧬 Evolution")
+        evo_name, lvl = get_evolution_info(search_name)
+        if evo_name and evo_name != "No further evolution":
+            evo_data = get_pokemon_data(evo_name)
+            e_col1, e_col2 = st.columns([1, 3])
+            with e_col1:
+                if evo_data:
+                    st.image(evo_data['sprites']['other']['official-artwork']['front_default'], width=150)
+            with e_col2:
+                st.write(f"Evolves into: **{evo_name.capitalize()}**")
+                st.write(f"Level required: **{lvl}**")
+        else:
+            st.info("This Pokémon does not evolve further.")
+
+        # --- TM SECTION ---
         st.divider()
         st.subheader("💿 Learnable TMs")
         
-       with st.spinner('Loading move types...'):
-            tm_badges = ""
+        with st.spinner('Calculating move compatibility...'):
+            tm_badges_list = []
             for m in data['moves']:
                 is_tm = any(d['move_learn_method']['name'] == 'machine' for d in m['version_group_details'])
                 if is_tm:
@@ -74,16 +114,23 @@ if search_name:
                     m_type = get_move_type(m_url)
                     bg = TYPE_COLORS.get(m_type, "#777")
                     
-                    # This single-line string prevents Streamlit from misinterpreting the HTML as a code block
-                    tm_badges += f'<div style="background-color:{bg}; color:white; padding:6px 14px; border-radius:20px; margin:6px; font-size:12px; font-weight:bold; display:inline-block; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); white-space:nowrap;">{m_name}</div>'
+                    # Single-line HTML string to prevent Streamlit from breaking
+                    badge = f'<div style="background-color:{bg}; color:white; padding:6px 12px; border-radius:15px; margin:5px; font-size:11px; font-weight:bold; display:inline-block; box-shadow: 2px 2px 4px rgba(0,0,0,0.2);">{m_name}</div>'
+                    tm_badges_list.append(badge)
 
-            if tm_badges:
-                # The wrapper div ensures they stay in a flexible grid
-                full_html = f'<div style="display: flex; flex-wrap: wrap; justify-content: flex-start;">{tm_badges}</div>'
-                st.markdown(full_html, unsafe_allow_html=True)
+            if tm_badges_list:
+                # Wrap all badges in a flex container for the grid effect
+                container_html = f'<div style="display:flex; flex-wrap:wrap;">{"".join(tm_badges_list)}</div>'
+                st.markdown(container_html, unsafe_allow_html=True)
             else:
-                st.info("No TM data found for this Pokémon.")
-    else:
-        st.error("Pokémon not found.")
+                st.write("No TM data found.")
 
-st.sidebar.write(f"**Team Size:** {len(st.session_state['team'])}/6")
+    else:
+        st.error("Pokémon not found. Please check your spelling!")
+
+# Sidebar Info
+st.sidebar.title("PokéTeam Management")
+st.sidebar.write(f"Current Team Members: **{len(st.session_state['team'])} / 6**")
+if st.sidebar.button("Clear Team"):
+    st.session_state['team'] = []
+    st.rerun()
