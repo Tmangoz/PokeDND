@@ -25,40 +25,40 @@ def get_move_details(move_url):
     except: return None
 
 def calculate_full_analysis(pokemon_types):
-    """Calculates all relations for the grid."""
-    defense = {"weak": [], "resist": [], "immune": []}
-    offense = {"super": [], "not_very": [], "no_effect": []}
-    
+    """Calculates all relations for the simplified columns."""
+    # Defensive side (Incoming)
+    weak, resist, immune_def = [], [], []
     def_mults = {}
+    # Offensive side (Outgoing)
+    super_eff, not_very, no_effect = set(), set(), set()
+    
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
-            # Defensive (Damage FROM)
+            # Defense
             for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
             for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
-            # Offensive (Damage TO)
-            for t in rel['double_damage_to']: offense["super"].append(t['name'])
-            for t in rel['half_damage_to']: offense["not_very"].append(t['name'])
-            for t in rel['no_damage_to']: offense["no_effect"].append(t['name'])
+            # Offense
+            for t in rel['double_damage_to']: super_eff.add(t['name'])
+            for t in rel['half_damage_to']: not_very.add(t['name'])
+            for t in rel['no_damage_to']: no_effect.add(t['name'])
 
     for t, m in def_mults.items():
-        if m > 1.0: defense["weak"].append(t)
-        elif 0.0 < m < 1.0: defense["resist"].append(t)
-        elif m == 0.0: defense["immune"].append(t)
+        if m > 1.0: weak.append(t)
+        elif 0.0 < m < 1.0: resist.append(t)
+        elif m == 0.0: immune_def.append(t)
             
-    return defense, {k: sorted(list(set(v))) for k, v in offense.items()}
+    return {
+        "weak": sorted(weak), "resist": sorted(resist), "immune_def": sorted(immune_def),
+        "super": sorted(list(super_eff)), "not_very": sorted(list(not_very)), "no_effect": sorted(list(no_effect))
+    }
 
-def render_grid_section(types, label, bg_color):
-    if not types: return ""
-    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 4px; border-radius:3px; margin:2px; font-size:9px; display:inline-block; border:1px solid rgba(255,255,255,0.2);">{t.upper()}</span>' for t in types])
-    return f'''
-    <div style="background-color:{bg_color}; padding:5px; border:1px solid #444; margin-bottom:2px;">
-        <div style="font-size:10px; font-weight:bold; margin-bottom:3px; color:white;">{label}</div>
-        {badges}
-    </div>
-    '''
+def render_badges(types):
+    if not types: return "None"
+    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 6px; border-radius:10px; margin:2px; font-size:10px; display:inline-block; font-weight:bold;">{t.upper()}</span>' for t in types])
+    return badges
 
 def add_move_callback(pokemon_index):
     val = st.session_state[f"search_{pokemon_index}"]
@@ -78,18 +78,18 @@ else:
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         
         with st.container(border=True):
-            col_info, col_moves, col_chart = st.columns([1, 1.8, 2.2])
+            col_info, col_moves, col_chart = st.columns([1, 1.5, 2.5])
             
             with col_info:
                 st.subheader(p_data['name'].capitalize())
                 st.image(p_data['sprites']['front_default'], width=100)
-                if st.button("🗑️ Remove", key=f"rem_p_{i}"):
+                if st.button("🗑️ Remove Pokémon", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
                 for s in p_data['stats']:
                     st.caption(f"**{s['stat']['name'].replace('special-','S.').upper()}**: {s['base_stat']}")
 
             with col_moves:
-                st.write("**Moves Selection**")
+                st.write("**Move Selection**")
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
@@ -106,29 +106,29 @@ else:
                                 st.session_state['selected_moves'][i].pop(idx); st.rerun()
 
             with col_chart:
-                defense, offense = calculate_full_analysis(p_data['types'])
+                res = calculate_full_analysis(p_data['types'])
                 
-                # Create a grid layout using HTML/CSS
-                grid_html = f'''
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; background-color: #262730; padding: 5px; border-radius: 5px;">
-                    <div style="grid-column: span 2; text-align: center; font-size: 12px; font-weight: bold; background: #111; padding: 3px;">TYPE EFFECTIVENESS MATRIX</div>
-                    
-                    <div>
-                        <div style="text-align: center; font-size: 10px; color: #ff4b4b; background: #331111; padding: 2px;">DEFENDER (Incoming)</div>
-                        {render_grid_section(defense['weak'], "WEAK (2x)", "#441111")}
-                        {render_grid_section(defense['resist'], "RESIST (1/2x)", "#113311")}
-                        {render_grid_section(defense['immune'], "IMMUNE (0x)", "#222211")}
-                    </div>
+                # --- LAYOUT FOR TYPE ANALYSIS ---
+                st.write("**Type Compatibility (Base Types)**")
+                c1, c2 = st.columns(2)
+                
+                with c1:
+                    st.caption("🛡️ **DEFENSE**")
+                    st.write("**Weak To:**")
+                    st.markdown(render_badges(res['weak']), unsafe_allow_html=True)
+                    st.write("**Resists:**")
+                    st.markdown(render_badges(res['resist']), unsafe_allow_html=True)
+                    st.write("**Immune To:**")
+                    st.markdown(render_badges(res['immune_def']), unsafe_allow_html=True)
 
-                    <div>
-                        <div style="text-align: center; font-size: 10px; color: #3498db; background: #112233; padding: 2px;">ATTACKER (Outgoing)</div>
-                        {render_grid_section(offense['super'], "SUPER (2x)", "#112244")}
-                        {render_grid_section(offense['not_very'], "WEAK (1/2x)", "#331111")}
-                        {render_grid_section(offense['no_effect'], "NO EFFECT (0x)", "#222")}
-                    </div>
-                </div>
-                '''
-                st.markdown(grid_html, unsafe_allow_html=True)
+                with c2:
+                    st.caption("⚔️ **OFFENSE**")
+                    st.write("**Super Effective Vs:**")
+                    st.markdown(render_badges(res['super']), unsafe_allow_html=True)
+                    st.write("**Not Very Effective Vs:**")
+                    st.markdown(render_badges(res['not_very']), unsafe_allow_html=True)
+                    st.write("**No Effect Vs:**")
+                    st.markdown(render_badges(res['no_effect']), unsafe_allow_html=True)
 
     if st.button("Clear Full Team", type="primary"):
         st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.rerun()
