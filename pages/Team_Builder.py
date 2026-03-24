@@ -12,11 +12,32 @@ if 'selected_moves' not in st.session_state:
 if 'shiny_states' not in st.session_state:
     st.session_state['shiny_states'] = {}
 
+# --- CALLBACKS ---
+def delete_pokemon(index):
+    # 1. Remove from the team list
+    st.session_state['team'].pop(index)
+    
+    # 2. Re-align dictionaries to fix index shifting
+    old_moves = st.session_state['selected_moves']
+    old_shiny = st.session_state['shiny_states']
+    
+    new_moves = {}
+    new_shiny = {}
+    
+    # Rebuild the dictionaries based on the new list order
+    for new_idx in range(len(st.session_state['team'])):
+        # If we deleted index 1, then old index 2 becomes new index 1
+        old_idx = new_idx if new_idx < index else new_idx + 1
+        if old_idx in old_moves: new_moves[new_idx] = old_moves[old_idx]
+        if old_idx in old_shiny: new_shiny[new_idx] = old_shiny[old_idx]
+        
+    st.session_state['selected_moves'] = new_moves
+    st.session_state['shiny_states'] = new_shiny
+
 # 2. Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
-        
         .move-bar-centered {
             color: white; padding: 8px 10px; border-radius: 6px;
             font-size: 11px; font-weight: bold; margin-top: 4px;
@@ -24,13 +45,8 @@ st.markdown("""
             justify-content: center; text-align: center;
             border-bottom: 3px solid rgba(0,0,0,0.2); text-transform: uppercase;
         }
-        
         .stat-label { font-size: 12px; font-weight: bold; margin-bottom: -5px; }
-        
-        .img-container {
-            display: flex; justify-content: center; align-items: center; height: 100%;
-        }
-        
+        .img-container { display: flex; justify-content: center; align-items: center; height: 100%; }
         .analysis-label { font-size: 10px; margin-bottom: 2px; margin-top: 5px; color: #ccc; }
         .column-header { font-size: 11px; font-weight: bold; margin-bottom: 5px; }
     </style>
@@ -129,11 +145,9 @@ else:
     cols = st.columns(3)
     STAT_MAP = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
 
-    # We iterate using a list to avoid index shifting issues during deletion
     for i in range(len(st.session_state['team'])):
         p_data = st.session_state['team'][i]
         
-        # Ensure state keys exist for this index
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
         
@@ -148,31 +162,9 @@ else:
                     st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
                     st.rerun()
 
-                # FIXED: Delete Pokemon Button
-                if h3.button("🗑️", key=f"rem_p_{i}"):
-                    # Remove the Pokémon
-                    st.session_state['team'].pop(i)
-                    
-                    # Rebuild state dictionaries to fix index shifting
-                    # We create new dicts based on the new order of the 'team' list
-                    new_moves = {}
-                    new_shiny = {}
-                    
-                    # Temporarily store old data to map it to new indices
-                    old_moves = st.session_state['selected_moves']
-                    old_shiny = st.session_state['shiny_states']
-                    
-                    # Filter out the deleted index and shift everyone else down
-                    # This ensures index 2 becomes index 1 if index 1 is deleted
-                    remaining_indices = [idx for idx in range(len(st.session_state['team']) + 1) if idx != i]
-                    
-                    for new_idx, old_idx in enumerate(remaining_indices):
-                        if old_idx in old_moves: new_moves[new_idx] = old_moves[old_idx]
-                        if old_idx in old_shiny: new_shiny[new_idx] = old_shiny[old_idx]
-                    
-                    st.session_state['selected_moves'] = new_moves
-                    st.session_state['shiny_states'] = new_shiny
-                    st.rerun()
+                # MODIFIED: Trash Button with Callback
+                # We use on_click to ensure the deletion happens before the loop reruns
+                h3.button("🗑️", key=f"rem_p_{i}", on_click=delete_pokemon, args=(i,))
 
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
