@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 st.set_page_config(page_title="Team Builder", layout="wide")
-st.set_page_config(page_title="PokéApp", initial_sidebar_state="expanded")
+
 # Colors for Move Types
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
