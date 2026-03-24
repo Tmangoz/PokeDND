@@ -4,44 +4,12 @@ import requests
 # 1. Page Config
 st.set_page_config(page_title="Team Builder", layout="wide")
 
-# --- 2. THE PERMANENT FIX: DELETE CALLBACK ---
-def delete_pokemon(index_to_remove):
-    """
-    This runs BEFORE the page rerenders. 
-    It removes the pokemon and shifts all move/shiny data 
-    so the indices stay perfectly aligned.
-    """
-    # Remove from team
-    st.session_state['team'].pop(index_to_remove)
-    
-    # Store old data
-    old_moves = st.session_state.get('selected_moves', {})
-    old_shiny = st.session_state.get('shiny_states', {})
-    
-    # Rebuild dictionaries
-    new_moves = {}
-    new_shiny = {}
-    
-    # Shift indices for everyone after the deleted pokemon
-    current_idx = 0
-    for old_idx in range(len(st.session_state['team']) + 1):
-        if old_idx == index_to_remove:
-            continue
-        if old_idx in old_moves:
-            new_moves[current_idx] = old_moves[old_idx]
-        if old_idx in old_shiny:
-            new_shiny[current_idx] = old_shiny[old_idx]
-        current_idx += 1
-        
-    st.session_state['selected_moves'] = new_moves
-    st.session_state['shiny_states'] = new_shiny
-
 # --- INITIALIZATION LOGIC ---
 if 'team' not in st.session_state: st.session_state['team'] = []
 if 'selected_moves' not in st.session_state: st.session_state['selected_moves'] = {}
 if 'shiny_states' not in st.session_state: st.session_state['shiny_states'] = {}
 
-# 3. Styling (Restored Full Analysis Styles)
+# 2. Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
@@ -67,7 +35,7 @@ TYPE_COLORS = {
     "fairy": "#EE99AC", "normal": "#A8A878"
 }
 
-# 4. Helpers
+# 3. Helpers
 @st.cache_data(ttl=86400)
 def get_all_pokemon_names():
     try:
@@ -151,6 +119,9 @@ else:
     cols = st.columns(3)
     STAT_MAP = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
 
+    # We use a list for index tracking to prevent shifting bugs
+    to_delete = None
+
     for i, p_data in enumerate(st.session_state['team']):
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
@@ -160,12 +131,14 @@ else:
                 h1, h2, h3 = st.columns([4, 1, 1])
                 h1.subheader(p_data['name'].capitalize())
                 
+                # Shiny Toggle
                 shiny_label = "✨" if not st.session_state['shiny_states'][i] else "🌟"
                 if h2.button(shiny_label, key=f"shiny_{i}"):
                     st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]; st.rerun()
 
-                # TRASH BUTTON FIX
-                h3.button("🗑️", key=f"rem_p_{i}", on_click=delete_pokemon, args=(i,))
+                # TRASH BUTTON
+                if h3.button("🗑️", key=f"rem_p_{i}"):
+                    to_delete = i
 
                 r1c1, r1c2 = st.columns([1.2, 2])
                 with r1c1:
@@ -181,7 +154,6 @@ else:
                 weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
                 st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:8px;"></div>', unsafe_allow_html=True)
                 
-                # RESTORED FULL ANALYSIS WITH LABELS
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown('<div class="column-header" style="color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
@@ -208,7 +180,6 @@ else:
                         m_details = get_move_details(m_url)
                         pwr = m_details.get('power')
                         pwr_label = f"({pwr})" if pwr else "(---)"
-                        
                         bg_color = TYPE_COLORS.get(m_details['type']['name'], "#978fdb")
                         m_c1, m_c2 = st.columns([5, 1])
                         with m_c1: st.markdown(f'<div class="move-bar-centered" style="background-color: {bg_color};">{m_name} {pwr_label}</div>', unsafe_allow_html=True)
@@ -216,3 +187,11 @@ else:
                             if st.button("✖", key=f"del_m_{i}_{m_idx}"):
                                 st.session_state['selected_moves'][i].pop(m_idx); st.rerun()
                     except: continue
+
+    # EXECUTE DELETE OUTSIDE LOOP
+    if to_delete is not None:
+        st.session_state['team'].pop(to_delete)
+        # Re-index dicts
+        st.session_state['selected_moves'] = {k if k < to_delete else k-1: v for k, v in st.session_state['selected_moves'].items() if k != to_delete}
+        st.session_state['shiny_states'] = {k if k < to_delete else k-1: v for k, v in st.session_state['shiny_states'].items() if k != to_delete}
+        st.rerun()
