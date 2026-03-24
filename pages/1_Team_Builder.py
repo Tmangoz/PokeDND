@@ -19,17 +19,35 @@ def get_move_details(move_url):
         return requests.get(move_url).json()
     except: return None
 
-# Initialize move storage in session state if not exists
+# Initialize session states
+if 'team' not in st.session_state:
+    st.session_state['team'] = []
 if 'selected_moves' not in st.session_state:
-    st.session_state['selected_moves'] = {} # Dictionary mapping pokemon index to list of moves
+    st.session_state['selected_moves'] = {}
+
+# --- CALLBACK FUNCTION FOR AUTO-ADD ---
+def add_move_callback(pokemon_index):
+    # Get the value from the selectbox using its unique key
+    selected_val = st.session_state[f"search_{pokemon_index}"]
+    
+    if selected_val and selected_val != "":
+        current_moves = st.session_state['selected_moves'].get(pokemon_index, [])
+        if len(current_moves) < 4:
+            if selected_val not in current_moves:
+                current_moves.append(selected_val)
+                st.session_state['selected_moves'][pokemon_index] = current_moves
+        else:
+            st.toast(f"Max 4 moves reached for this Pokémon!", icon="⚠️")
+        
+        # Reset the selectbox to empty after adding
+        st.session_state[f"search_{pokemon_index}"] = ""
 
 st.title("🏆 My Pokémon Team")
 
-if 'team' not in st.session_state or len(st.session_state['team']) == 0:
+if not st.session_state['team']:
     st.info("Your team is empty! Go back to the Explorer to add some Pokémon.")
 else:
     for i, p_data in enumerate(st.session_state['team']):
-        # Ensure every pokemon has a slot in the move dictionary
         if i not in st.session_state['selected_moves']:
             st.session_state['selected_moves'][i] = []
 
@@ -52,7 +70,7 @@ else:
                         st.write(f"**{short_name}**: {s['base_stat']}")
 
             with main_col2:
-                # 1. Get all possible moves (Level-up + TMs)
+                # 1. Prepare Move List
                 all_moves = []
                 for m in p_data['moves']:
                     methods = [d['move_learn_method']['name'] for d in m['version_group_details']]
@@ -60,50 +78,51 @@ else:
                         all_moves.append(m['move']['name'].replace("-", " ").title())
                 all_moves = sorted(list(set(all_moves)))
 
-                # 2. Search and Add Section
-                m_search_col, m_btn_col = st.columns([3, 1])
-                with m_search_col:
-                    move_to_add = st.selectbox(f"Search Moves", options=[""] + all_moves, key=f"search_{i}", label_visibility="collapsed")
-                with m_btn_col:
-                    if st.button("➕ Add", key=f"add_btn_{i}"):
-                        if move_to_add and move_to_add != "":
-                            if len(st.session_state['selected_moves'][i]) < 4:
-                                if move_to_add not in st.session_state['selected_moves'][i]:
-                                    st.session_state['selected_moves'][i].append(move_to_add)
-                                    st.rerun()
-                            else:
-                                st.warning("Max 4 moves!")
+                # 2. Auto-Add Selectbox
+                st.write("🔍 **Add a Move:**")
+                st.selectbox(
+                    "Search and select to add automatically",
+                    options=[""] + all_moves,
+                    key=f"search_{i}",
+                    on_change=add_move_callback,
+                    args=(i,),
+                    label_visibility="collapsed"
+                )
 
-                # 3. Render Moves with Internal Remove Buttons
+                # 3. Display Moves in a Grid
                 st.write("**Active Moves:**")
-                move_cols = st.columns(2) # Show moves in 2 mini-columns per pokemon
+                m_cols = st.columns(2)
                 
                 for idx, m_display_name in enumerate(st.session_state['selected_moves'][i]):
+                    # Re-fetch data for the badge
                     api_name = m_display_name.lower().replace(" ", "-")
-                    m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_name)
-                    m_info = get_move_details(m_url)
-                    
-                    if m_info:
-                        m_type = m_info['type']['name']
-                        m_power = m_info.get('power') if m_info.get('power') else "—"
-                        bg = TYPE_COLORS.get(m_type, "#777")
+                    try:
+                        m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_name)
+                        m_info = get_move_details(m_url)
                         
-                        # Use a sub-container for the move "Card"
-                        with move_cols[idx % 2]:
-                            st.markdown(f'''
-                                <div style="background-color:{bg}; color:white; padding:10px; border-radius:10px; margin-bottom:5px; text-align:center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
-                                    <div style="font-weight:bold; font-size:13px;">{m_display_name.upper()}</div>
-                                    <div style="font-size:10px; opacity:0.9;">PWR: {m_power} | {m_type.upper()}</div>
-                                </div>
-                            ''', unsafe_allow_html=True)
+                        if m_info:
+                            m_type = m_info['type']['name']
+                            m_power = m_info.get('power') if m_info.get('power') else "—"
+                            bg = TYPE_COLORS.get(m_type, "#777")
                             
-                            # The Remove Button right under the badge
-                            if st.button(f"Remove {m_display_name}", key=f"del_move_{i}_{idx}", use_container_width=True):
-                                st.session_state['selected_moves'][i].pop(idx)
-                                st.rerun()
+                            with m_cols[idx % 2]:
+                                # Styled Badge
+                                st.markdown(f'''
+                                    <div style="background-color:{bg}; color:white; padding:8px; border-radius:8px; margin-bottom:2px; text-align:center; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);">
+                                        <div style="font-weight:bold; font-size:12px;">{m_display_name.upper()}</div>
+                                        <div style="font-size:10px; opacity:0.8;">PWR: {m_power} | {m_type.upper()}</div>
+                                    </div>
+                                ''', unsafe_allow_html=True)
+                                
+                                # Small red remove button
+                                if st.button(f"✖ Remove {m_display_name}", key=f"del_{i}_{idx}", use_container_width=True, type="secondary"):
+                                    st.session_state['selected_moves'][i].pop(idx)
+                                    st.rerun()
+                    except StopIteration:
+                        continue # Move not found in data
 
     st.divider()
-    if st.button("Clear Full Team"):
+    if st.button("Clear Full Team", type="primary"):
         st.session_state['team'] = []
         st.session_state['selected_moves'] = {}
         st.rerun()
