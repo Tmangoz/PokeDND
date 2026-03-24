@@ -23,25 +23,31 @@ def get_move_details(move_url):
     except: return None
 
 def calculate_analysis(pokemon_types):
-    weak, resist, super_eff = [], [], []
+    weak, resist, immune_def = [], [], [] # Fixed: Initialized immune_def here
+    super_eff = set()
     def_mults = {}
+    
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
+            # Defensive
             for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
             for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
+            # Offensive
             for t in rel['double_damage_to']: super_eff.add(t['name'])
+            
     for t, m in def_mults.items():
         if m > 1.0: weak.append(t)
         elif 0.0 < m < 1.0: resist.append(t)
         elif m == 0.0: immune_def.append(t)
+            
     return sorted(weak), sorted(resist), sorted(list(super_eff))
 
 def render_badges(types):
     if not types: return '<span style="font-size:10px; color:gray;">None</span>'
-    return "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:1px 4px; border-radius:4px; margin:1px; font-size:9px; display:inline-block;">{t.upper()}</span>' for t in types])
+    return "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:1px 4px; border-radius:4px; margin:1px; font-size:9px; display:inline-block; font-weight:bold;">{t.upper()}</span>' for t in types])
 
 def add_move_callback(idx):
     val = st.session_state[f"search_{idx}"]
@@ -70,13 +76,13 @@ else:
                 if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # Row 1: Larger Image & Bigger Stats
-                r1c1, r1c2 = st.columns([1.1, 1])
+                # Row 1: Image & Large Stats
+                r1c1, r1c2 = st.columns([1, 1.1])
                 with r1c1:
-                    st.image(p_data['sprites']['front_default'], width=100) # Increased size
+                    st.image(p_data['sprites']['front_default'], width=110)
                 with r1c2:
-                    # Larger font size and bold labels for stats
-                    stats_html = "".join([f'<div style="font-size:12px; line-height:1.4;"><b>{s["stat"]["name"].replace("special-","S").upper()[:5]}:</b> {s["base_stat"]}</div>' for s in p_data['stats']])
+                    # Bolder, larger stats (13px)
+                    stats_html = "".join([f'<div style="font-size:13px; line-height:1.5; margin-bottom:1px;"><b>{s["stat"]["name"].replace("special-","S").upper()[:5]}:</b> {s["base_stat"]}</div>' for s in p_data['stats']])
                     st.markdown(stats_html, unsafe_allow_html=True)
 
                 # Row 2: Type Analysis
@@ -96,18 +102,20 @@ else:
                 # Row 4: Active Moves
                 for m_idx, m_name in enumerate(st.session_state['selected_moves'][i]):
                     api_n = m_name.lower().replace(" ", "-")
-                    m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
-                    m_details = get_move_details(m_url)
-                    if m_details:
-                        bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
-                        m_col, x_col = st.columns([5, 1.2])
-                        m_col.markdown(f'''
-                            <div style="background-color:{bg}; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:3px; height:26px; display:flex; align-items:center; border-left: 4px solid rgba(0,0,0,0.2);">
-                                {m_name.upper()}
-                            </div>
-                        ''', unsafe_allow_html=True)
-                        if x_col.button("✖", key=f"del_{i}_{m_idx}"):
-                            st.session_state['selected_moves'][i].pop(m_idx); st.rerun()
+                    try:
+                        m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
+                        m_details = get_move_details(m_url)
+                        if m_details:
+                            bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
+                            m_col, x_col = st.columns([5, 1.2])
+                            m_col.markdown(f'''
+                                <div style="background-color:{bg}; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:3px; height:28px; display:flex; align-items:center;">
+                                    {m_name.upper()}
+                                </div>
+                            ''', unsafe_allow_html=True)
+                            if x_col.button("✖", key=f"del_{i}_{m_idx}"):
+                                st.session_state['selected_moves'][i].pop(m_idx); st.rerun()
+                    except: continue
 
     st.markdown("---")
     if st.button("Clear Full Team", type="primary"):
