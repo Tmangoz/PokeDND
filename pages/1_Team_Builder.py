@@ -25,22 +25,17 @@ def get_move_details(move_url):
     except: return None
 
 def calculate_full_analysis(pokemon_types):
-    """Calculates all relations for the simplified columns."""
-    # Defensive side (Incoming)
     weak, resist, immune_def = [], [], []
     def_mults = {}
-    # Offensive side (Outgoing)
     super_eff, not_very, no_effect = set(), set(), set()
     
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
-            # Defense
             for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
             for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
-            # Offense
             for t in rel['double_damage_to']: super_eff.add(t['name'])
             for t in rel['half_damage_to']: not_very.add(t['name'])
             for t in rel['no_damage_to']: no_effect.add(t['name'])
@@ -57,8 +52,7 @@ def calculate_full_analysis(pokemon_types):
 
 def render_badges(types):
     if not types: return "None"
-    badges = "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 6px; border-radius:10px; margin:2px; font-size:10px; display:inline-block; font-weight:bold;">{t.upper()}</span>' for t in types])
-    return badges
+    return "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:2px 6px; border-radius:10px; margin:2px; font-size:10px; display:inline-block; font-weight:bold;">{t.upper()}</span>' for t in types])
 
 def add_move_callback(pokemon_index):
     val = st.session_state[f"search_{pokemon_index}"]
@@ -78,7 +72,7 @@ else:
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         
         with st.container(border=True):
-            col_info, col_moves, col_chart = st.columns([1, 1.5, 2.5])
+            col_info, col_moves, col_chart = st.columns([1, 1.8, 2.2])
             
             with col_info:
                 st.subheader(p_data['name'].capitalize())
@@ -93,42 +87,42 @@ else:
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
-                m_grid = st.columns(2)
-                for idx, m_name in enumerate(st.session_state['selected_moves'][i]):
+                # --- NEW HOVER-STYLE REMOVE LOGIC ---
+                st.write("**Active Moves:**")
+                for m_idx, m_name in enumerate(st.session_state['selected_moves'][i]):
                     api_n = m_name.lower().replace(" ", "-")
                     m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
                     m_details = get_move_details(m_url)
+                    
                     if m_details:
                         bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
-                        with m_grid[idx % 2]:
-                            st.markdown(f'<div style="background-color:{bg}; color:white; padding:5px; border-radius:5px; text-align:center; font-size:10px; font-weight:bold;">{m_name.upper()}</div>', unsafe_allow_html=True)
-                            if st.button("✖", key=f"del_{i}_{idx}", use_container_width=True):
-                                st.session_state['selected_moves'][i].pop(idx); st.rerun()
+                        
+                        # We use a column with a button on the right to simulate the "X inside the bar"
+                        move_bar_col, x_col = st.columns([5, 1])
+                        with move_bar_col:
+                            st.markdown(f'''
+                                <div style="background-color:{bg}; color:white; padding:6px 12px; border-radius:5px; font-size:12px; font-weight:bold; width:100%; display:flex; justify-content:space-between; align-items:center;">
+                                    <span>{m_name.upper()}</span>
+                                    <span style="opacity:0.8; font-size:10px;">PWR: {m_details.get("power") or "—"}</span>
+                                </div>
+                            ''', unsafe_allow_html=True)
+                        with x_col:
+                            # This button acts as the "X" on the far right
+                            if st.button("✖", key=f"del_{i}_{m_idx}", help="Remove Move"):
+                                st.session_state['selected_moves'][i].pop(m_idx)
+                                st.rerun()
 
             with col_chart:
                 res = calculate_full_analysis(p_data['types'])
-                
-                # --- LAYOUT FOR TYPE ANALYSIS ---
-                st.write("**Type Compatibility (Base Types)**")
                 c1, c2 = st.columns(2)
-                
                 with c1:
                     st.caption("🛡️ **DEFENSE**")
-                    st.write("**Weak To:**")
-                    st.markdown(render_badges(res['weak']), unsafe_allow_html=True)
-                    st.write("**Resists:**")
-                    st.markdown(render_badges(res['resist']), unsafe_allow_html=True)
-                    st.write("**Immune To:**")
-                    st.markdown(render_badges(res['immune_def']), unsafe_allow_html=True)
-
+                    st.write("**Weak To:**"); st.markdown(render_badges(res['weak']), unsafe_allow_html=True)
+                    st.write("**Resists:**"); st.markdown(render_badges(res['resist']), unsafe_allow_html=True)
                 with c2:
                     st.caption("⚔️ **OFFENSE**")
-                    st.write("**Super Effective Vs:**")
-                    st.markdown(render_badges(res['super']), unsafe_allow_html=True)
-                    st.write("**Not Very Effective Vs:**")
-                    st.markdown(render_badges(res['not_very']), unsafe_allow_html=True)
-                    st.write("**No Effect Vs:**")
-                    st.markdown(render_badges(res['no_effect']), unsafe_allow_html=True)
+                    st.write("**Super Effective Vs:**"); st.markdown(render_badges(res['super']), unsafe_allow_html=True)
+                    st.write("**No Effect Vs:**"); st.markdown(render_badges(res['no_effect']), unsafe_allow_html=True)
 
     if st.button("Clear Full Team", type="primary"):
         st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.rerun()
