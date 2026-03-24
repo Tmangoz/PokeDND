@@ -5,11 +5,12 @@ import random
 # 1. Page Config
 st.set_page_config(page_title="Battle Simulator", layout="wide")
 
-# --- 2. THE FIX: PERMANENT STATE KEYS ---
-# We initialize these once. They will stay alive for the whole session.
+# --- 2. PERMANENT STATE KEYS ---
 if 'atk_tmp' not in st.session_state: st.session_state['atk_tmp'] = []
 if 'def_moves_list' not in st.session_state: st.session_state['def_moves_list'] = []
 if 'last_log' not in st.session_state: st.session_state['last_log'] = ""
+if 'last_atk_name' not in st.session_state: st.session_state['last_atk_name'] = ""
+if 'last_def_name' not in st.session_state: st.session_state['last_def_name'] = ""
 
 # --- 3. STYLING ---
 TYPE_COLORS = {
@@ -23,9 +24,8 @@ TYPE_COLORS = {
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
-        .battle-log { background-color: #0e1117; color: #00ff00; padding: 15px; border-radius: 8px; border: 1px solid #333; font-family: monospace; min-height: 50px; }
+        .battle-log { background-color: #0e1117; color: #00ff00; padding: 15px; border-radius: 8px; border: 1px solid #333; font-family: monospace; }
         .turn-order-banner { background: #1e1e1e; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #444; font-weight: bold; margin-bottom: 20px;}
-        .type-badge { color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-left: 5px; }
         .move-card { border: 1px solid #444; border-radius: 8px; padding: 10px; text-align: center; background: rgba(255,255,255,0.03); min-height: 155px; margin-bottom: 10px; }
         .total-dmg { font-size: 16px; color: #978fdb; font-weight: bold; }
     </style>
@@ -78,18 +78,17 @@ if st.sidebar.button("➡️ Team Builder", use_container_width=True): st.switch
 st.sidebar.divider()
 force_crit = st.sidebar.checkbox("🎯 Force Nat 20")
 
-# --- 6. TOP NAVIGATION (TEAM RIBBON) ---
+# --- 6. TOP NAVIGATION ---
 st.title("⚔️ Poke Camp Battle Sim")
 if st.session_state.get('team'):
     ribbon = st.columns(6)
     for i, p in enumerate(st.session_state['team']):
         if ribbon[i].button(p['name'].capitalize(), key=f"rib_{i}"):
-            st.session_state['atk_sb'] = p['name'] # Sync with the selectbox key
+            st.session_state['atk_sb'] = p['name']
             st.rerun()
 
 st.divider()
 
-# Get Full Pokemon List for Selectboxes
 try:
     all_p = [p['name'] for p in requests.get("https://pokeapi.co/api/v2/pokemon?limit=2000").json()['results']]
 except:
@@ -100,16 +99,19 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🛡️ Attacker")
-    # Using 'atk_sb' as a persistent key
     atk_name = st.selectbox("Search Attacker", [""] + all_p, key="atk_sb")
-    atk_data = get_poke_data(atk_name)
     
+    # NEW: Reset moves if the Pokémon species changes
+    if atk_name != st.session_state['last_atk_name']:
+        st.session_state['atk_tmp'] = []
+        st.session_state['last_atk_name'] = atk_name
+    
+    atk_data = get_poke_data(atk_name)
     if atk_data:
         st.image(atk_data['sprites']['front_default'], width=100)
         a_red = max(atk_data['stats'][2]['base_stat'], atk_data['stats'][4]['base_stat']) // 40
         st.write(f"**HP:** {atk_data['stats'][0]['base_stat']//10} | **Reduct:** -{a_red}")
         
-        # Move Collector
         team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == atk_name), None)
         if team_idx is not None:
             atk_moves = st.session_state['selected_moves'].get(team_idx, [])
@@ -124,16 +126,19 @@ with col1:
 
 with col2:
     st.subheader("🎯 Target")
-    # Using 'def_sb' as a persistent key
     def_name = st.selectbox("Search Target", [""] + all_p, key="def_sb")
-    def_data = get_poke_data(def_name)
     
+    # NEW: Reset moves if the Target species changes
+    if def_name != st.session_state['last_def_name']:
+        st.session_state['def_moves_list'] = []
+        st.session_state['last_def_name'] = def_name
+        
+    def_data = get_poke_data(def_name)
     if def_data:
         st.image(def_data['sprites']['front_default'], width=100)
         d_red = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat']) // 40
         st.write(f"**HP:** {def_data['stats'][0]['base_stat']//10} | **Reduct:** -{d_red}")
         
-        # Move Collector
         def_team_idx = next((i for i, p in enumerate(st.session_state.get('team', [])) if p['name'] == def_name), None)
         if def_team_idx is not None:
             def_moves = st.session_state['selected_moves'].get(def_team_idx, [])
@@ -149,7 +154,6 @@ with col2:
 # --- 8. THE BATTLE GRIDS ---
 st.divider()
 if atk_data and def_data:
-    # Speed Check
     aspd, dspd = atk_data['stats'][5]['base_stat']//15, def_data['stats'][5]['base_stat']//15
     f_p = atk_data['name'] if aspd >= dspd else def_data['name']
     st.markdown(f'<div class="turn-order-banner">🏃 {f_p.capitalize()} acts FIRST</div>', unsafe_allow_html=True)
@@ -169,7 +173,7 @@ if atk_data and def_data:
             if st.button(f"Roll {m_name}", key=f"r_{key_pre}_{i}", use_container_width=True):
                 roll = 20 if force_crit else random.randint(1, 20)
                 final = 0 if tm == -999 else max(0, ab + pb + tm + (5 if roll == 20 else 0) - dr)
-                st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** deals **{final}** damage!"
+                st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** dealt **{final}** damage!"
                 st.rerun()
 
     with g1:
