@@ -4,18 +4,18 @@ import requests
 # 1. Page Config
 st.set_page_config(page_title="PokéDND Explorer", layout="wide")
 
-# 2. Hide Default Sidebar Navigation
+# 2. Hide Default Sidebar Navigation & Custom CSS
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
-        .stSelectbox div[data-baseweb="select"] {cursor: pointer;}
+        /* Make the stat text slightly larger in the explorer too */
+        .stat-text { font-size: 16px; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
 # 3. API Fetching Functions
 @st.cache_data(ttl=86400)
 def get_all_pokemon_names():
-    """Fetches all 1000+ Pokemon names for the search dropdown."""
     try:
         url = "https://pokeapi.co/api/v2/pokemon?limit=2000"
         response = requests.get(url).json()
@@ -25,7 +25,6 @@ def get_all_pokemon_names():
 
 @st.cache_data(ttl=86400)
 def get_pokemon_data(name):
-    """Fetches full data for a specific Pokemon."""
     if not name: return None
     url = f"https://pokeapi.co/api/v2/pokemon/{name.lower()}"
     response = requests.get(url)
@@ -48,89 +47,63 @@ if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_widt
     st.switch_page("pages/Team_Builder.py")
 
 st.sidebar.divider()
-st.sidebar.caption("Search for a Pokémon to add it to your D&D party. Max 6 members.")
+st.sidebar.info(f"Party: {team_count} / 6")
 
 # --- MAIN INTERFACE ---
 st.title("🔍 Pokémon Explorer")
-st.write("Start typing a name to see suggestions!")
 
-# Get full list for auto-complete
 all_names = get_all_pokemon_names()
 
-# Auto-complete Search Bar
 search_query = st.selectbox(
     "Search for a Pokémon:",
     options=[""] + all_names,
-    format_func=lambda x: x.capitalize() if x else "Type to search...",
-    index=0,
-    help="Select a Pokémon from the list to view stats."
+    format_func=lambda x: x.capitalize() if x else "Type to search (e.g. Charizard)...",
+    index=0
 )
 
 if search_query:
-    with st.spinner(f"Loading {search_query.capitalize()}..."):
+    with st.spinner(f"Fetching {search_query.capitalize()}..."):
         p_data = get_pokemon_data(search_query)
         
     if p_data:
         st.divider()
-        col1, col2 = st.columns([1, 2])
+        # Adjusted ratio: 2 for Image, 3 for Stats/Moves
+        col1, col2 = st.columns([2, 3])
         
         with col1:
-            # Display Sprite
-            st.image(p_data['sprites']['front_default'], width=250)
+            # BIGGER IMAGE: Increased width to 400 for a clear view
+            st.image(p_data['sprites']['other']['official-artwork']['front_default'] or p_data['sprites']['front_default'], width=400)
             
             # Add to Team Button
-            if st.button(f"➕ Add {p_data['name'].capitalize()} to Team", use_container_width=True):
+            if st.button(f"➕ Add {p_data['name'].capitalize()} to Team", use_container_width=True, type="primary"):
                 if len(st.session_state['team']) < 6:
-                    # Check for duplicates
                     if any(p['name'] == p_data['name'] for p in st.session_state['team']):
-                        st.warning(f"{p_data['name'].capitalize()} is already in your team!")
+                        st.warning("Already in your team!")
                     else:
                         st.session_state['team'].append(p_data)
-                        st.success(f"Added {p_data['name'].capitalize()} to your team!")
+                        st.success(f"Added {p_data['name'].capitalize()}!")
                         st.rerun()
                 else:
-                    st.error("Your team is full! Remove someone in the Team Builder first.")
+                    st.error("Team is full! (Max 6)")
 
         with col2:
             st.header(p_data['name'].capitalize())
             
-            # Display Types as Badges
-            type_html = ""
-            for t in p_data['types']:
-                t_name = t['type']['name']
-                type_html += f'<span style="background-color:#777; color:white; padding:5px 10px; border-radius:15px; margin-right:5px; font-weight:bold;">{t_name.upper()}</span>'
-            st.markdown(type_html, unsafe_allow_html=True)
+            # Types
+            type_badges = "".join([f'<span style="background-color:#555; color:white; padding:4px 12px; border-radius:15px; margin-right:8px; font-weight:bold; font-size:14px;">{t["type"]["name"].upper()}</span>' for t in p_data['types']])
+            st.markdown(type_badges, unsafe_allow_html=True)
             
-            st.write("") # Spacer
-            
-            # Display Stats
-            st.subheader("Base Stats")
+            # Stats Section
+            st.write("### Base Stats")
             STAT_LABELS = {
                 "hp": "HP", "attack": "ATK", "defense": "DEF", 
                 "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"
             }
             
-            for s in p_data['stats']:
+            # Using 2 columns for stats to keep it tight
+            stat_cols = st.columns(2)
+            for idx, s in enumerate(p_data['stats']):
                 label = STAT_LABELS.get(s['stat']['name'], s['stat']['name'].upper())
                 val = s['base_stat']
-                # Visual progress bar for stats
-                st.write(f"**{label}**: {val}")
-                st.progress(min(val / 150, 1.0))
-
-    else:
-        st.error("Could not find data for that Pokémon. Please try again.")
-
-else:
-    # Instructions when nothing is searched
-    st.info("Select a Pokémon above to see its stats and add it to your party.")
-    
-    # Optional: Display some "Trending" or Random Pokemon
-    st.write("### Need inspiration?")
-    suggest_cols = st.columns(3)
-    starters = ["bulbasaur", "charmander", "squirtle"]
-    for i, name in enumerate(starters):
-        with suggest_cols[i]:
-            if st.button(f"View {name.capitalize()}", use_container_width=True):
-                # This doesn't trigger the selectbox directly but gives a hint
-                st.info(f"Search for '{name}' in the bar above!")
-
+                with stat_cols[idx % 2]:
+                    st.markdown(f"**{label}:**
