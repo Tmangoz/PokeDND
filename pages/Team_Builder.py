@@ -12,7 +12,7 @@ st.markdown("""
 st.sidebar.title("🎮 PokéDND Menu")
 
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
-    st.switch_page("Home.py")
+    st.switch_page("../app.py")
 
 # No need for a button to go to the page we are already on, 
 # but we can show the count!
