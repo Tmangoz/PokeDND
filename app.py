@@ -64,42 +64,22 @@ if search_name:
         st.divider()
         st.subheader("💿 Learnable TMs")
         
-        with st.spinner('Loading move types...'):
+       with st.spinner('Loading move types...'):
             tm_badges = ""
-            # Extract moves learned via 'machine'
             for m in data['moves']:
                 is_tm = any(d['move_learn_method']['name'] == 'machine' for d in m['version_group_details'])
                 if is_tm:
-                    m_name = m['move']['name']
+                    m_name = m['move']['name'].replace("-"," ").upper()
                     m_url = m['move']['url']
                     m_type = get_move_type(m_url)
                     bg = TYPE_COLORS.get(m_type, "#777")
                     
-                    # Create the badge HTML
-                    tm_badges += f'''
-                        <div style="
-                            background-color:{bg}; 
-                            color:white; 
-                            padding:6px 14px; 
-                            border-radius:20px; 
-                            margin:6px; 
-                            font-size:12px; 
-                            font-weight:bold; 
-                            display: inline-block;
-                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-                            white-space: nowrap;
-                        ">
-                            {m_name.replace("-"," ").upper()}
-                        </div>
-                    '''
+                    # This single-line string prevents Streamlit from misinterpreting the HTML as a code block
+                    tm_badges += f'<div style="background-color:{bg}; color:white; padding:6px 14px; border-radius:20px; margin:6px; font-size:12px; font-weight:bold; display:inline-block; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); white-space:nowrap;">{m_name}</div>'
 
             if tm_badges:
-                # Use a wrapper div with flex-wrap to force the grid behavior
-                full_html = f'''
-                    <div style="display: flex; flex-wrap: wrap; justify-content: flex-start;">
-                        {tm_badges}
-                    </div>
-                '''
+                # The wrapper div ensures they stay in a flexible grid
+                full_html = f'<div style="display: flex; flex-wrap: wrap; justify-content: flex-start;">{tm_badges}</div>'
                 st.markdown(full_html, unsafe_allow_html=True)
             else:
                 st.info("No TM data found for this Pokémon.")
