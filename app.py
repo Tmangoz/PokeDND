@@ -1,10 +1,14 @@
 import streamlit as st
 import requests
+# Place this at the very top of app.py right after st.set_page_config
 if st.sidebar.button("➡️ Go to Team Builder"):
+    # Streamlit Cloud prefers the relative path without 'pages/' 
+    # if it's already recognized as a multipage app
     try:
         st.switch_page("pages/1_Team_Builder.py")
-    except:
-        st.error("Could not find the Team Builder page. Please check if the 'pages' folder exists in GitHub.")
+    except Exception:
+        # Fallback if the above pathing fails on your specific server config
+        st.switch_page("1_Team_Builder.py")
 # 1. Page Config - Forces sidebar to stay open and uses wide layout
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
 
