@@ -12,29 +12,42 @@ if 'selected_moves' not in st.session_state:
 if 'shiny_states' not in st.session_state:
     st.session_state['shiny_states'] = {}
 
-# --- CALLBACKS ---
-def delete_pokemon(index):
-    # 1. Remove from the team list
-    st.session_state['team'].pop(index)
+# --- 2. THE FIXED DELETE FUNCTION ---
+def delete_pokemon(index_to_remove):
+    """
+    Handles the removal of a pokemon and re-indexes all associated 
+    data (moves and shiny states) to prevent the 'vanishing' or 
+    'unresponsive' button bug.
+    """
+    # Remove from main team list
+    st.session_state['team'].pop(index_to_remove)
     
-    # 2. Re-align dictionaries to fix index shifting
+    # Store old data to re-map
     old_moves = st.session_state['selected_moves']
     old_shiny = st.session_state['shiny_states']
     
+    # Create fresh empty dicts
     new_moves = {}
     new_shiny = {}
     
-    # Rebuild the dictionaries based on the new list order
-    for new_idx in range(len(st.session_state['team'])):
-        # If we deleted index 1, then old index 2 becomes new index 1
-        old_idx = new_idx if new_idx < index else new_idx + 1
-        if old_idx in old_moves: new_moves[new_idx] = old_moves[old_idx]
-        if old_idx in old_shiny: new_shiny[new_idx] = old_shiny[old_idx]
+    # Re-map remaining data to new indices
+    # If we had 0, 1, 2 and removed 1, then 0 stays 0 and 2 becomes 1
+    current_idx = 0
+    for old_idx in range(len(st.session_state['team']) + 1):
+        if old_idx == index_to_remove:
+            continue
+        
+        if old_idx in old_moves:
+            new_moves[current_idx] = old_moves[old_idx]
+        if old_idx in old_shiny:
+            new_shiny[current_idx] = old_shiny[old_idx]
+        current_idx += 1
         
     st.session_state['selected_moves'] = new_moves
     st.session_state['shiny_states'] = new_shiny
+    # No rerun here; it will happen automatically after the callback finishes
 
-# 2. Styling
+# 3. Styling
 st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
@@ -60,7 +73,7 @@ TYPE_COLORS = {
     "fairy": "#EE99AC", "normal": "#A8A878"
 }
 
-# 3. Helpers
+# 4. Helpers
 @st.cache_data(ttl=86400)
 def get_all_pokemon_names():
     try:
@@ -118,7 +131,6 @@ def add_move_callback(idx):
 # --- SIDEBAR ---
 st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
-if st.sidebar.button(f"➡️ Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True): st.switch_page("pages/Battle_Sim.py")
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
@@ -134,7 +146,8 @@ if quick_add:
     if p_data:
         if len(st.session_state['team']) < 6:
             if not any(p['name'] == p_data['name'] for p in st.session_state['team']):
-                st.session_state['team'].append(p_data); st.rerun()
+                st.session_state['team'].append(p_data)
+                st.rerun()
         else: st.error("Team is full!")
 
 st.divider()
@@ -145,9 +158,9 @@ else:
     cols = st.columns(3)
     STAT_MAP = {"hp": "HP", "attack": "ATK", "defense": "DEF", "special-attack": "SpA", "special-defense": "SpD", "speed": "Spd"}
 
-    for i in range(len(st.session_state['team'])):
-        p_data = st.session_state['team'][i]
-        
+    # IMPORTANT: We iterate through the team list itself
+    for i, p_data in enumerate(st.session_state['team']):
+        # Ensure state keys exist for this specific loop
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         if i not in st.session_state['shiny_states']: st.session_state['shiny_states'][i] = False
         
@@ -162,8 +175,8 @@ else:
                     st.session_state['shiny_states'][i] = not st.session_state['shiny_states'][i]
                     st.rerun()
 
-                # MODIFIED: Trash Button with Callback
-                # We use on_click to ensure the deletion happens before the loop reruns
+                # DELETE BUTTON WITH CALLBACK
+                # The callback ensures the data is wiped before the page rerenders
                 h3.button("🗑️", key=f"rem_p_{i}", on_click=delete_pokemon, args=(i,))
 
                 r1c1, r1c2 = st.columns([1.2, 2])
@@ -183,16 +196,10 @@ else:
                 t_col1, t_col2 = st.columns(2)
                 with t_col1:
                     st.markdown('<div class="column-header" style="color:#ff4b4b;">🛡️ DEFENSE</div>', unsafe_allow_html=True)
-                    st.markdown('<div class="analysis-label">Weak Against:</div>', unsafe_allow_html=True)
                     st.markdown(render_badges(weak), unsafe_allow_html=True)
-                    st.markdown('<div class="analysis-label">Resistant to:</div>', unsafe_allow_html=True)
-                    st.markdown(render_badges(resist), unsafe_allow_html=True)
                 with t_col2:
                     st.markdown('<div class="column-header" style="color:#3498db;">⚔️ OFFENSE</div>', unsafe_allow_html=True)
-                    st.markdown('<div class="analysis-label">Super Effective:</div>', unsafe_allow_html=True)
                     st.markdown(render_badges(super_eff), unsafe_allow_html=True)
-                    st.markdown('<div class="analysis-label">Not Effective:</div>', unsafe_allow_html=True)
-                    st.markdown(render_badges(not_very), unsafe_allow_html=True)
 
                 st.divider()
 
