@@ -23,8 +23,7 @@ def get_move_details(move_url):
     except: return None
 
 def calculate_analysis(pokemon_types):
-    weak, resist, immune_def = [], [], []
-    super_eff = set()
+    weak, resist, super_eff = [], [], []
     def_mults = {}
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
@@ -58,36 +57,35 @@ st.title("🏆 PokéDND Team Builder")
 if 'team' not in st.session_state or not st.session_state['team']:
     st.info("Your team is empty! Go back to the Explorer to add some Pokémon.")
 else:
-    # --- 3 COLUMN GRID ---
     cols = st.columns(3)
     
     for i, p_data in enumerate(st.session_state['team']):
         if i not in st.session_state['selected_moves']: st.session_state['selected_moves'][i] = []
         
-        # Determine which column this pokemon goes into
         with cols[i % 3]:
             with st.container(border=True):
-                # Header with Name and small Delete
-                head1, head2 = st.columns([3, 1])
-                head1.subheader(p_data['name'].capitalize())
-                if head2.button("🗑️", key=f"rem_p_{i}", help="Remove Pokémon"):
+                # Header
+                h1, h2 = st.columns([4, 1])
+                h1.subheader(p_data['name'].capitalize())
+                if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # Row 1: Image & Stats
-                r1c1, r1c2 = st.columns([1, 1.2])
+                # Row 1: Larger Image & Bigger Stats
+                r1c1, r1c2 = st.columns([1.1, 1])
                 with r1c1:
-                    st.image(p_data['sprites']['front_default'], width=80)
+                    st.image(p_data['sprites']['front_default'], width=100) # Increased size
                 with r1c2:
-                    stats_html = "".join([f'<div style="font-size:10px;"><b>{s["stat"]["name"][:2].upper()}:</b> {s["base_stat"]}</div>' for s in p_data['stats']])
+                    # Larger font size and bold labels for stats
+                    stats_html = "".join([f'<div style="font-size:12px; line-height:1.4;"><b>{s["stat"]["name"].replace("special-","S").upper()[:5]}:</b> {s["base_stat"]}</div>' for s in p_data['stats']])
                     st.markdown(stats_html, unsafe_allow_html=True)
 
-                # Row 2: Type Analysis (Condensed)
+                # Row 2: Type Analysis
                 weak, resist, super_eff = calculate_analysis(p_data['types'])
                 st.markdown(f'''
-                    <div style="background:rgba(255,255,255,0.05); padding:5px; border-radius:5px; margin-top:5px;">
-                        <div style="font-size:9px;"><b>WEAK:</b> {render_badges(weak)}</div>
-                        <div style="font-size:9px;"><b>RESIST:</b> {render_badges(resist)}</div>
-                        <div style="font-size:9px; color:#3498db;"><b>STR VS:</b> {render_badges(super_eff)}</div>
+                    <div style="background:rgba(255,255,255,0.07); padding:6px; border-radius:5px; margin:8px 0;">
+                        <div style="font-size:10px; margin-bottom:2px;"><b>WEAK:</b> {render_badges(weak)}</div>
+                        <div style="font-size:10px; margin-bottom:2px;"><b>RESIST:</b> {render_badges(resist)}</div>
+                        <div style="font-size:10px; color:#3498db;"><b>STR VS:</b> {render_badges(super_eff)}</div>
                     </div>
                 ''', unsafe_allow_html=True)
 
@@ -95,7 +93,7 @@ else:
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
-                # Row 4: Active Moves (Compact Bars)
+                # Row 4: Active Moves
                 for m_idx, m_name in enumerate(st.session_state['selected_moves'][i]):
                     api_n = m_name.lower().replace(" ", "-")
                     m_url = next(m['move']['url'] for m in p_data['moves'] if m['move']['name'] == api_n)
@@ -104,7 +102,7 @@ else:
                         bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
                         m_col, x_col = st.columns([5, 1.2])
                         m_col.markdown(f'''
-                            <div style="background-color:{bg}; color:white; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:bold; margin-top:2px; height:22px; display:flex; align-items:center;">
+                            <div style="background-color:{bg}; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:3px; height:26px; display:flex; align-items:center; border-left: 4px solid rgba(0,0,0,0.2);">
                                 {m_name.upper()}
                             </div>
                         ''', unsafe_allow_html=True)
