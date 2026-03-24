@@ -42,12 +42,10 @@ if search_name:
     if data:
         col1, col2 = st.columns([1, 2])
         with col1:
-            # Displays the official artwork at a controlled width
             st.image(data['sprites']['other']['official-artwork']['front_default'], width=250)
             
             if st.button("➕ Add to Team"):
                 if len(st.session_state['team']) < 6:
-                    # Avoid duplicates
                     if not any(p['name'] == data['name'] for p in st.session_state['team']):
                         st.session_state['team'].append(data)
                         st.success(f"Added {data['name'].capitalize()}!")
@@ -58,7 +56,7 @@ if search_name:
         
         with col2:
             st.header(data['name'].capitalize())
-            # Display stats in a clean list
+            # Display stats in a compact list
             for s in data['stats']:
                 stat_name = s['stat']['name'].upper().replace("-", " ")
                 st.write(f"**{stat_name}**: {s['base_stat']}")
@@ -67,7 +65,7 @@ if search_name:
         st.subheader("💿 Learnable TMs")
         
         with st.spinner('Loading move types...'):
-            tm_badges = []
+            tm_badges = ""
             # Extract moves learned via 'machine'
             for m in data['moves']:
                 is_tm = any(d['move_learn_method']['name'] == 'machine' for d in m['version_group_details'])
@@ -77,29 +75,35 @@ if search_name:
                     m_type = get_move_type(m_url)
                     bg = TYPE_COLORS.get(m_type, "#777")
                     
-                    badge = f'''
-                        <span style="
+                    # Create the badge HTML
+                    tm_badges += f'''
+                        <div style="
                             background-color:{bg}; 
                             color:white; 
-                            padding:5px 12px; 
-                            border-radius:15px; 
-                            margin:5px; 
-                            display:inline-block; 
+                            padding:6px 14px; 
+                            border-radius:20px; 
+                            margin:6px; 
                             font-size:12px; 
                             font-weight:bold; 
-                            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                            display: inline-block;
+                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+                            white-space: nowrap;
                         ">
                             {m_name.replace("-"," ").upper()}
-                        </span>
+                        </div>
                     '''
-                    tm_badges.append(badge)
 
             if tm_badges:
-                st.markdown("".join(tm_badges), unsafe_allow_html=True)
+                # Use a wrapper div with flex-wrap to force the grid behavior
+                full_html = f'''
+                    <div style="display: flex; flex-wrap: wrap; justify-content: flex-start;">
+                        {tm_badges}
+                    </div>
+                '''
+                st.markdown(full_html, unsafe_allow_html=True)
             else:
                 st.info("No TM data found for this Pokémon.")
     else:
         st.error("Pokémon not found.")
 
-# Quick shortcut to see team count in sidebar
 st.sidebar.write(f"**Team Size:** {len(st.session_state['team'])}/6")
