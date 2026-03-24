@@ -6,12 +6,13 @@ import random
 st.set_page_config(page_title="Battle Simulator", layout="wide")
 
 # --- INITIALIZATION ---
+# Ensure all state keys exist so they don't reset to None
 if 'team' not in st.session_state: st.session_state['team'] = []
 if 'selected_moves' not in st.session_state: st.session_state['selected_moves'] = {}
 if 'attacker_search' not in st.session_state: st.session_state['attacker_search'] = ""
 if 'def_s' not in st.session_state: st.session_state['def_s'] = ""
-if 'def_moves_list' not in st.session_state: st.session_state['def_moves_list'] = []
 if 'atk_tmp' not in st.session_state: st.session_state['atk_tmp'] = []
+if 'def_moves_list' not in st.session_state: st.session_state['def_moves_list'] = []
 
 # 2. Styling
 TYPE_COLORS = {
@@ -42,7 +43,7 @@ st.markdown("""
         .move-card {
             border: 1px solid #444; border-radius: 8px; padding: 10px;
             text-align: center; background: rgba(255,255,255,0.03);
-            margin-bottom: 10px; min-height: 145px;
+            margin-bottom: 10px; min-height: 150px;
         }
         .breakdown-text { font-size: 11px; color: #aaa; line-height: 1.1; }
         .total-dmg { font-size: 15px; color: #978fdb; font-weight: bold; margin-top: 5px;}
@@ -95,16 +96,16 @@ def get_all_learnable_moves(pokemon_name):
 # --- SIDEBAR ---
 st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
-if st.sidebar.button(f"➡️ Team Builder ({len(st.session_state.get('team', []))}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
+if st.sidebar.button(f"➡️ Team Builder ({len(st.session_state['team'])}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True): st.switch_page("pages/Battle_Sim.py")
 st.sidebar.divider()
 force_crit = st.sidebar.checkbox("🎯 Force Nat 20 (Crit Hit)")
 
-# --- MAIN ---
+# --- MAIN INTERFACE ---
 st.title("⚔️ Poke Camp Battle Sim")
 
+# Team Ribbon
 if st.session_state['team']:
-    st.write("### 👥 Quick Select from Team")
     ribbon = st.columns(6)
     for i, p in enumerate(st.session_state['team']):
         with ribbon[i]:
@@ -116,13 +117,16 @@ if st.session_state['team']:
 
 st.divider()
 
+# Get Full List of Pokemon
 all_p = [p['name'] for p in requests.get("https://pokeapi.co/api/v2/pokemon?limit=2000").json()['results']]
 
 col1, col2 = st.columns(2)
 
+# Roll Processor
 def process_roll(p_atk, p_def, m_name, m_info):
     roll = 20 if force_crit else random.randint(1, 20)
-    p_bon, a_bon = get_move_power_bonus(m_info.get('power', 0)), max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
+    p_bon = get_move_power_bonus(m_info.get('power', 0))
+    a_bon = max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
     tm = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in p_def['types']])
     dr = max(p_def['stats'][2]['base_stat'], p_def['stats'][4]['base_stat']) // 40
     if roll >= 8:
@@ -134,7 +138,7 @@ def process_roll(p_atk, p_def, m_name, m_info):
 # --- COLUMN 1: ATTACKER ---
 with col1:
     st.subheader("🛡️ Attacker")
-    val_a = st.selectbox("Search Attacker", options=[""] + all_p, index=all_p.index(st.session_state['attacker_search']) + 1 if st.session_state['attacker_search'] in all_p else 0, key="atk_sb")
+    val_a = st.selectbox("Search Attacker", options=[""] + all_p, index=all_p.index(st.session_state['attacker_search']) + 1 if st.session_state['attacker_search'] in all_p else 0, key="atk_selector")
     if val_a != st.session_state['attacker_search']:
         st.session_state['attacker_search'] = val_a
         st.session_state['atk_tmp'] = []
@@ -152,16 +156,16 @@ with col1:
         if team_idx is not None:
             a_moves = st.session_state.get('selected_moves', {}).get(team_idx, [])
         else:
-            sm_a = st.selectbox("Add Move", options=[""] + get_all_learnable_moves(val_a), key="asm")
+            sm_a = st.selectbox("Add Attacker Move", options=[""] + get_all_learnable_moves(val_a), key="atk_move_adder")
             if sm_a and sm_a not in st.session_state['atk_tmp'] and len(st.session_state['atk_tmp']) < 4:
                 st.session_state['atk_tmp'].append(sm_a); st.rerun()
             a_moves = st.session_state['atk_tmp']
-            if st.button("Clear Attacker Moves"): st.session_state['atk_tmp'] = []; st.rerun()
+            if st.button("Clear Attacker Moves", key="cl_atk"): st.session_state['atk_tmp'] = []; st.rerun()
 
 # --- COLUMN 2: TARGET ---
 with col2:
     st.subheader("🎯 Target")
-    val_d = st.selectbox("Search Target", options=[""] + all_p, index=all_p.index(st.session_state['def_s']) + 1 if st.session_state['def_s'] in all_p else 0, key="def_sb")
+    val_d = st.selectbox("Search Target", options=[""] + all_p, index=all_p.index(st.session_state['def_s']) + 1 if st.session_state['def_s'] in all_p else 0, key="def_selector")
     if val_d != st.session_state['def_s']:
         st.session_state['def_s'] = val_d
         st.session_state['def_moves_list'] = []
@@ -179,11 +183,11 @@ with col2:
         if def_team_idx is not None:
             d_moves = st.session_state.get('selected_moves', {}).get(def_team_idx, [])
         else:
-            sm_d = st.selectbox("Add Move", options=[""] + get_all_learnable_moves(val_d), key="dsm")
+            sm_d = st.selectbox("Add Target Move", options=[""] + get_all_learnable_moves(val_d), key="def_move_adder")
             if sm_d and sm_d not in st.session_state['def_moves_list'] and len(st.session_state['def_moves_list']) < 4:
                 st.session_state['def_moves_list'].append(sm_d); st.rerun()
             d_moves = st.session_state['def_moves_list']
-            if st.button("Clear Target Moves"): st.session_state['def_moves_list'] = []; st.rerun()
+            if st.button("Clear Target Moves", key="cl_def"): st.session_state['def_moves_list'] = []; st.rerun()
 
 # --- BATTLE GRIDS ---
 st.divider()
@@ -195,9 +199,8 @@ if atk_data and def_data:
 
     g_col1, g_col2 = st.columns(2)
     
-    # Render Attacker Moves against Target
     with g_col1:
-        st.write("**Attacker Actions**")
+        st.write(f"**{atk_data['name'].capitalize()} Actions**")
         m_g1 = st.columns(2)
         for i, mn in enumerate(a_moves):
             mi = get_move_info(mn)
@@ -208,11 +211,10 @@ if atk_data and def_data:
                 exp = 0 if tm == -999 else max(0, ab + pb + tm + (5 if force_crit else 0) - dr)
                 with m_g1[i % 2]:
                     st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Atk: +{ab} | Pwr: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Tgt Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
-                    if st.button("Roll", key=f"ar_{i}"): process_roll(atk_data, def_data, mn, mi)
+                    if st.button("Roll", key=f"aroll_{i}"): process_roll(atk_data, def_data, mn, mi)
 
-    # Render Target Moves against Attacker
     with g_col2:
-        st.write("**Target Actions**")
+        st.write(f"**{def_data['name'].capitalize()} Actions**")
         m_g2 = st.columns(2)
         for i, mn in enumerate(d_moves):
             mi = get_move_info(mn)
@@ -223,7 +225,7 @@ if atk_data and def_data:
                 exp = 0 if tm == -999 else max(0, ab + pb + tm + (5 if force_crit else 0) - dr)
                 with m_g2[i % 2]:
                     st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Atk: +{ab} | Pwr: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Tgt Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
-                    if st.button("Roll", key=f"dr_{i}"): process_roll(def_data, atk_data, mn, mi)
+                    if st.button("Roll", key=f"droll_{i}"): process_roll(def_data, atk_data, mn, mi)
 
 if 'last_log' in st.session_state:
     st.markdown(f'<div class="battle-log">{st.session_state["last_log"]}</div>', unsafe_allow_html=True)
