@@ -9,7 +9,6 @@ st.markdown("""
     <style>
         [data-testid="stSidebarNav"] {display: none;}
         
-        /* Centering Container for Image and Button */
         .centered-container {
             display: flex;
             flex-direction: column;
@@ -19,7 +18,6 @@ st.markdown("""
             width: 100%;
         }
         
-        /* TM Badge Styling */
         .move-badge {
             color: white;
             padding: 6px 10px;
@@ -29,12 +27,11 @@ st.markdown("""
             font-weight: bold;
             display: inline-block;
             text-align: center;
-            width: 135px; /* Fixed width for alignment */
+            width: 135px;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             border-bottom: 3px solid rgba(0,0,0,0.3);
         }
         
-        /* Full-length TM Box (No Scroll) */
         .tm-grid {
             display: flex;
             flex-wrap: wrap;
@@ -74,17 +71,30 @@ def get_move_info(move_url):
     try: return requests.get(move_url).json()
     except: return None
 
-# 4. Session State
-if 'team' not in st.session_state: st.session_state['team'] = []
+# 4. Session State Initialization
+if 'team' not in st.session_state: 
+    st.session_state['team'] = []
 
 # --- SIDEBAR MENU ---
 st.sidebar.title("🎮 PokéDND Menu")
+
+# Navigation
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
     st.switch_page("app.py")
 
+# Restored Team Counter Logic
 team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
+
+st.sidebar.divider()
+
+# Restored Clear Team Button in Sidebar
+if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
+    st.session_state['team'] = []
+    if 'selected_moves' in st.session_state:
+        st.session_state['selected_moves'] = {}
+    st.rerun()
 
 # --- MAIN INTERFACE ---
 st.title("🔍 Pokémon Explorer")
@@ -98,7 +108,6 @@ if search_query:
         col1, col2 = st.columns([2, 3])
         
         with col1:
-            # CENTERED IMAGE & BUTTON
             artwork = p_data['sprites']['other']['official-artwork']['front_default']
             img_url = artwork if artwork else p_data['sprites']['front_default']
             
@@ -113,8 +122,11 @@ if search_query:
                     if any(p['name'] == p_data['name'] for p in st.session_state['team']):
                         st.warning("Already in your team!")
                     else:
-                        st.session_state['team'].append(p_data); st.success("Added!"); st.rerun()
-                else: st.error("Team is full!")
+                        st.session_state['team'].append(p_data)
+                        st.success("Added!")
+                        st.rerun()
+                else: 
+                    st.error("Team is full!")
 
         with col2:
             st.header(p_data['name'].capitalize())
@@ -133,11 +145,9 @@ if search_query:
             st.divider()
             st.write("### 📀 Learnable TMs")
             
-            # Filter for TMs
             tm_moves = [m for m in p_data['moves'] if any(v['move_learn_method']['name'] == 'machine' for v in m['version_group_details'])]
             
             if tm_moves:
-                # REMOVED SCROLL: The grid now expands to show everything
                 move_html = '<div class="tm-grid">'
                 for m in sorted(tm_moves, key=lambda x: x['move']['name']):
                     m_name = m['move']['name'].replace("-", " ").upper()
