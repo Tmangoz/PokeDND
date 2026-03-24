@@ -9,9 +9,11 @@ st.set_page_config(page_title="Battle Simulator", layout="wide")
 if 'team' not in st.session_state: st.session_state['team'] = []
 if 'selected_moves' not in st.session_state: st.session_state['selected_moves'] = {}
 if 'attacker_search' not in st.session_state: st.session_state['attacker_search'] = ""
+if 'def_s' not in st.session_state: st.session_state['def_s'] = "" # Persistent Target
 if 'def_moves_list' not in st.session_state: st.session_state['def_moves_list'] = []
+if 'atk_tmp' not in st.session_state: st.session_state['atk_tmp'] = []
 
-# 2. Styling & Colors
+# 2. Styling
 TYPE_COLORS = {
     "fire": "#F08030", "water": "#6890F0", "grass": "#78C850", "electric": "#F8D030",
     "ice": "#98D8D8", "fighting": "#C03028", "poison": "#A040A0", "ground": "#E0C068",
@@ -40,10 +42,10 @@ st.markdown("""
         .move-card {
             border: 1px solid #444; border-radius: 8px; padding: 10px;
             text-align: center; background: rgba(255,255,255,0.03);
-            margin-bottom: 10px; min-height: 140px;
+            margin-bottom: 10px; min-height: 145px;
         }
         .breakdown-text { font-size: 11px; color: #aaa; line-height: 1.1; }
-        .total-dmg { font-size: 15px; color: #978fdb; font-weight: bold; }
+        .total-dmg { font-size: 15px; color: #978fdb; font-weight: bold; margin-top: 5px;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -62,8 +64,7 @@ def render_type_badges(pokemon_data):
     badges = ""
     for t in pokemon_data.get('types', []):
         t_name = t['type']['name']
-        c = TYPE_COLORS.get(t_name, "#777")
-        badges += f'<span class="type-badge" style="background-color: {c};">{t_name}</span>'
+        badges += f'<span class="type-badge" style="background-color: {TYPE_COLORS.get(t_name, "#777")};">{t_name}</span>'
     return badges
 
 @st.cache_data(ttl=86400)
@@ -81,20 +82,17 @@ def get_type_modifier(move_type, defender_types):
 
 @st.cache_data(ttl=86400)
 def get_move_info(move_name):
-    try:
-        url_name = move_name.lower().replace(' ', '-')
-        return requests.get(f"https://pokeapi.co/api/v2/move/{url_name}").json()
+    try: return requests.get(f"https://pokeapi.co/api/v2/move/{move_name.lower().replace(' ', '-')}").json()
     except: return None
 
 @st.cache_data(ttl=86400)
 def get_all_learnable_moves(pokemon_name):
     try:
         res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_name.lower()}").json()
-        moves = [m['move']['name'].replace("-", " ").title() for m in res['moves']]
-        return sorted(list(set(moves)))
+        return sorted(list(set([m['move']['name'].replace("-", " ").title() for m in res['moves']])))
     except: return []
 
-# --- SIDEBAR MENU ---
+# --- SIDEBAR ---
 st.sidebar.title("🎮 PokéDND Menu")
 if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
 if st.sidebar.button(f"➡️ Team Builder ({len(st.session_state.get('team', []))}/6)", use_container_width=True): st.switch_page("pages/Team_Builder.py")
@@ -102,7 +100,7 @@ if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True): st.sw
 st.sidebar.divider()
 force_crit = st.sidebar.checkbox("🎯 Force Nat 20 (Crit Hit)")
 
-# --- MAIN INTERFACE ---
+# --- MAIN ---
 st.title("⚔️ Poke Camp Battle Sim")
 
 if st.session_state['team']:
@@ -114,15 +112,14 @@ if st.session_state['team']:
             st.image(p['sprites']['front_shiny' if shiny else 'front_default'], width=80)
             if st.button(f"Select {p['name'].capitalize()}", key=f"q_{i}", use_container_width=True):
                 st.session_state['attacker_search'] = p['name']
-                st.session_state['is_team_selection'] = True
                 st.session_state['active_team_idx'] = i 
                 st.rerun()
 
 st.divider()
 
+# Core Data Fetching
 atk_data = requests.get(f"https://pokeapi.co/api/v2/pokemon/{st.session_state['attacker_search'].lower()}").json() if st.session_state['attacker_search'] else None
-def_name_raw = st.session_state.get('def_s', "")
-def_data = requests.get(f"https://pokeapi.co/api/v2/pokemon/{def_name_raw.lower()}").json() if def_name_raw else None
+def_data = requests.get(f"https://pokeapi.co/api/v2/pokemon/{st.session_state['def_s'].lower()}").json() if st.session_state['def_s'] else None
 
 # Banner
 if atk_data and def_data:
@@ -133,15 +130,13 @@ if atk_data and def_data:
 all_p = [p['name'] for p in requests.get("https://pokeapi.co/api/v2/pokemon?limit=2000").json()['results']]
 col1, col2 = st.columns(2)
 
-# Global Roll Processor
 def process_roll(p_atk, p_def, m_name, m_info):
     roll = 20 if force_crit else random.randint(1, 20)
-    p_bon = get_move_power_bonus(m_info.get('power', 0))
-    a_bon = max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
-    t_mod = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in p_def['types']])
-    d_red = max(p_def['stats'][2]['base_stat'], p_def['stats'][4]['base_stat']) // 40
+    p_bon, a_bon = get_move_power_bonus(m_info.get('power', 0)), max(p_atk['stats'][1]['base_stat'], p_atk['stats'][3]['base_stat']) // 20
+    tm = get_type_modifier(m_info['type']['name'], [t['type']['name'] for t in p_def['types']])
+    dr = max(p_def['stats'][2]['base_stat'], p_def['stats'][4]['base_stat']) // 40
     if roll >= 8:
-        final = 0 if t_mod == -999 else max(0, a_bon + p_bon + t_mod + (5 if roll == 20 else 0) - d_red)
+        final = 0 if tm == -999 else max(0, a_bon + p_bon + tm + (5 if roll == 20 else 0) - dr)
         st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** dealt **{final}** Damage with **{m_name}**"
     else: st.session_state['last_log'] = f"🎲 **{roll}** | **{p_atk['name'].capitalize()}** missed!"
     st.rerun()
@@ -149,79 +144,80 @@ def process_roll(p_atk, p_def, m_name, m_info):
 # --- COLUMN 1: ATTACKER ---
 with col1:
     st.subheader("🛡️ Attacker")
-    val = st.selectbox("Search Attacker", options=[""] + all_p, label_visibility="collapsed",
-                       index=all_p.index(st.session_state['attacker_search']) + 1 if st.session_state['attacker_search'] in all_p else 0)
-    if val != st.session_state['attacker_search']:
-        st.session_state['attacker_search'] = val
-        st.session_state['is_team_selection'] = any(p['name'] == val for p in st.session_state['team'])
+    val_a = st.selectbox("Search Attacker", options=[""] + all_p, index=all_p.index(st.session_state['attacker_search']) + 1 if st.session_state['attacker_search'] in all_p else 0, label_visibility="collapsed")
+    if val_a != st.session_state['attacker_search']:
+        st.session_state['attacker_search'] = val_a
+        st.session_state['atk_tmp'] = [] # Clear moves when switching species
         st.rerun()
 
     if atk_data:
         a_red = max(atk_data['stats'][2]['base_stat'], atk_data['stats'][4]['base_stat']) // 40
         st.markdown(f"**HP:** {atk_data['stats'][0]['base_stat']//10} | **Speed:** {atk_data['stats'][5]['base_stat']//15} {render_type_badges(atk_data)}", unsafe_allow_html=True)
-        st.image(atk_data['sprites']['front_default'], width=120)
+        st.image(atk_data['sprites']['front_default'], width=100)
         st.write(f"**Defensive Reduction:** -{a_red}")
-        
-        # Moves
-        moves_list = []
-        if st.session_state.get('is_team_selection'):
-            idx = st.session_state.get('active_team_idx', 0)
-            moves_list = st.session_state.get('selected_moves', {}).get(idx, [])
-        else:
-            sm = st.selectbox("Add Move to Attacker", options=[""] + get_all_learnable_moves(atk_data['name']), key="atk_ms")
-            if sm and sm not in st.session_state.get('atk_tmp', []):
-                if 'atk_tmp' not in st.session_state: st.session_state['atk_tmp'] = []
-                if len(st.session_state['atk_tmp']) < 4: st.session_state['atk_tmp'].append(sm); st.rerun()
-            moves_list = st.session_state.get('atk_tmp', [])
-            if st.button("Clear Attacker Moves"): st.session_state['atk_tmp'] = []; st.rerun()
 
-        if moves_list and def_data:
-            m_grid = st.columns(2)
-            for i, mn in enumerate(moves_list):
+        # Move Logic
+        team_idx = next((i for i, p in enumerate(st.session_state['team']) if p['name'] == atk_data['name']), None)
+        if team_idx is not None:
+            a_moves = st.session_state.get('selected_moves', {}).get(team_idx, [])
+        else:
+            sm_a = st.selectbox("Add Attacker Move", options=[""] + get_all_learnable_moves(atk_data['name']), key="asm")
+            if sm_a and sm_a not in st.session_state['atk_tmp'] and len(st.session_state['atk_tmp']) < 4:
+                st.session_state['atk_tmp'].append(sm_a); st.rerun()
+            a_moves = st.session_state['atk_tmp']
+            if st.button("Clear Attacker Moves", key="clra"): st.session_state['atk_tmp'] = []; st.rerun()
+
+        if a_moves and def_data:
+            g1 = st.columns(2)
+            for i, mn in enumerate(a_moves):
                 mi = get_move_info(mn)
                 if mi:
                     pb, ab = get_move_power_bonus(mi.get('power', 0)), max(atk_data['stats'][1]['base_stat'], atk_data['stats'][3]['base_stat']) // 20
                     tm = get_type_modifier(mi['type']['name'], [t['type']['name'] for t in def_data['types']])
                     dr = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat']) // 40
                     exp = 0 if tm == -999 else max(0, ab + pb + tm + (5 if force_crit else 0) - dr)
-                    with m_grid[i % 2]:
-                        st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Atk: +{ab} | Pwr: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Tgt Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
-                        if st.button("Roll", key=f"ar_{i}"): process_roll(atk_data, def_data, mn, mi)
+                    with g1[i%2]:
+                        st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Stat: +{ab} | Move: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Def Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
+                        if st.button("Roll", key=f"arol_{i}"): process_roll(atk_data, def_data, mn, mi)
 
 # --- COLUMN 2: TARGET ---
 with col2:
     st.subheader("🎯 Target")
-    d_name = st.selectbox("Target Search", options=[""] + all_p, key="def_s", label_visibility="collapsed")
+    val_d = st.selectbox("Search Target", options=[""] + all_p, index=all_p.index(st.session_state['def_s']) + 1 if st.session_state['def_s'] in all_p else 0, label_visibility="collapsed")
+    if val_d != st.session_state['def_s']:
+        st.session_state['def_s'] = val_d
+        st.session_state['def_moves_list'] = [] # Clear moves when switching species
+        st.rerun()
+
     if def_data:
         d_red = max(def_data['stats'][2]['base_stat'], def_data['stats'][4]['base_stat']) // 40
         st.markdown(f"**HP:** {def_data['stats'][0]['base_stat']//10} | **Speed:** {def_data['stats'][5]['base_stat']//15} {render_type_badges(def_data)}", unsafe_allow_html=True)
-        st.image(def_data['sprites']['front_default'], width=120)
+        st.image(def_data['sprites']['front_default'], width=100)
         st.write(f"**Defensive Reduction:** -{d_red}")
 
-        # Moves (Collecting up to 4)
-        def_t_idx = next((i for i, p in enumerate(st.session_state['team']) if p['name'] == def_data['name']), None)
-        if def_t_idx is not None:
-            dm_list = st.session_state.get('selected_moves', {}).get(def_t_idx, [])
-            st.caption("Using Team Moves")
+        # Move Logic
+        def_team_idx = next((i for i, p in enumerate(st.session_state['team']) if p['name'] == def_data['name']), None)
+        if def_team_idx is not None:
+            d_moves = st.session_state.get('selected_moves', {}).get(def_team_idx, [])
         else:
-            sm_d = st.selectbox("Search & Add Move to Target", options=[""] + get_all_learnable_moves(def_data['name']), key="def_ms")
-            if sm_d and sm_d not in st.session_state['def_moves_list']:
-                if len(st.session_state['def_moves_list']) < 4: st.session_state['def_moves_list'].append(sm_d); st.rerun()
-            dm_list = st.session_state['def_moves_list']
-            if st.button("Clear Target Moves"): st.session_state['def_moves_list'] = []; st.rerun()
+            sm_d = st.selectbox("Add Target Move", options=[""] + get_all_learnable_moves(def_data['name']), key="dsm")
+            if sm_d and sm_d not in st.session_state['def_moves_list'] and len(st.session_state['def_moves_list']) < 4:
+                st.session_state['def_moves_list'].append(sm_d); st.rerun()
+            d_moves = st.session_state['def_moves_list']
+            if st.button("Clear Target Moves", key="clrd"): st.session_state['def_moves_list'] = []; st.rerun()
 
-        if dm_list and atk_data:
-            m_grid_d = st.columns(2)
-            for i, mn in enumerate(dm_list):
+        if d_moves and atk_data:
+            g2 = st.columns(2)
+            for i, mn in enumerate(d_moves):
                 mi = get_move_info(mn)
                 if mi:
                     pb, ab = get_move_power_bonus(mi.get('power', 0)), max(def_data['stats'][1]['base_stat'], def_data['stats'][3]['base_stat']) // 20
                     tm = get_type_modifier(mi['type']['name'], [t['type']['name'] for t in atk_data['types']])
                     dr = max(atk_data['stats'][2]['base_stat'], atk_data['stats'][4]['base_stat']) // 40
                     exp = 0 if tm == -999 else max(0, ab + pb + tm + (5 if force_crit else 0) - dr)
-                    with m_grid_d[i % 2]:
-                        st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Atk: +{ab} | Pwr: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Tgt Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
-                        if st.button("Roll", key=f"dr_{i}"): process_roll(def_data, atk_data, mn, mi)
+                    with g2[i%2]:
+                        st.markdown(f'<div class="move-card"><b style="color:{TYPE_COLORS.get(mi["type"]["name"],"#444")};">{mn.upper()}</b><br><div class="breakdown-text">Stat: +{ab} | Move: +{pb}<br>Type: {tm if tm != -999 else "Immune"} | Crit: {5 if force_crit else 0}<br>Def Red: -{dr}</div><div class="total-dmg">Total: {exp}</div></div>', unsafe_allow_html=True)
+                        if st.button("Roll", key=f"drol_{i}"): process_roll(def_data, atk_data, mn, mi)
 
 if 'last_log' in st.session_state:
     st.markdown(f'<div class="battle-log">{st.session_state["last_log"]}</div>', unsafe_allow_html=True)
