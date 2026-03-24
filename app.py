@@ -12,7 +12,12 @@ st.markdown("""
 st.sidebar.title("🎮 PokéDND Menu")
 
 if st.sidebar.button("🏠 Home Page", use_container_width=True):
-    st.switch_page("Home.py")
+    try:
+        st.switch_page("app.py")
+    except Exception as e:
+        # This is a fallback in case the cloud environment 
+        # requires the relative path back to the root
+        st.switch_page("app.py")
 
 team_count = len(st.session_state.get('team', []))
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
