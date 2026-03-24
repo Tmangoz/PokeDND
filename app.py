@@ -93,6 +93,10 @@ team_count = len(st.session_state['team'])
 if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
 
+# NEW: Battle Sim Button
+if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
+    st.switch_page("pages/Battle_Sim.py")
+
 st.sidebar.divider()
 
 if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
