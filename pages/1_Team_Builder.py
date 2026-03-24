@@ -24,28 +24,31 @@ def get_move_details(move_url):
 
 def calculate_analysis(pokemon_types):
     weak, resist, immune_def = [], [], []
-    super_eff = set()
+    super_eff, not_very = set(), set()
     def_mults = {}
     
     for t_info in pokemon_types:
         data = get_type_data(t_info['type']['name'])
         if data:
             rel = data['damage_relations']
+            # Defensive
             for t in rel['double_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 2.0
             for t in rel['half_damage_from']: def_mults[t['name']] = def_mults.get(t['name'], 1.0) * 0.5
             for t in rel['no_damage_from']: def_mults[t['name']] = 0.0
+            # Offensive
             for t in rel['double_damage_to']: super_eff.add(t['name'])
+            for t in rel['half_damage_to']: not_very.add(t['name'])
             
     for t, m in def_mults.items():
         if m > 1.0: weak.append(t)
         elif 0.0 < m < 1.0: resist.append(t)
         elif m == 0.0: immune_def.append(t)
             
-    return sorted(weak), sorted(resist), sorted(list(super_eff))
+    return sorted(weak), sorted(resist), sorted(list(super_eff)), sorted(list(not_very))
 
 def render_badges(types):
-    if not types: return '<span style="font-size:10px; color:gray;">None</span>'
-    return "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:1px 4px; border-radius:4px; margin:1px; font-size:9px; display:inline-block; font-weight:bold;">{t.upper()}</span>' for t in types])
+    if not types: return '<span style="font-size:9px; color:gray;">None</span>'
+    return "".join([f'<span style="background-color:{TYPE_COLORS.get(t,"#777")}; color:white; padding:1px 3px; border-radius:3px; margin:1px; font-size:8px; display:inline-block; font-weight:bold;">{t.upper()[:3]}</span>' for t in types])
 
 def add_move_callback(idx):
     val = st.session_state[f"search_{idx}"]
@@ -62,8 +65,6 @@ if 'team' not in st.session_state or not st.session_state['team']:
     st.info("Your team is empty! Go back to the Explorer to add some Pokémon.")
 else:
     cols = st.columns(3)
-    
-    # Custom mapping for your specific shorthand
     STAT_MAP = ["HP", "ATK", "DEF", "SpA", "SpD", "Spd"]
 
     for i, p_data in enumerate(st.session_state['team']):
@@ -77,30 +78,38 @@ else:
                 if h2.button("🗑️", key=f"rem_p_{i}"):
                     st.session_state['team'].pop(i); st.session_state['selected_moves'].pop(i, None); st.rerun()
 
-                # Row 1: Image & Custom Stats
+                # Row 1: Image & Stats
                 r1c1, r1c2 = st.columns([1, 1])
                 with r1c1:
-                    st.image(p_data['sprites']['front_default'], width=110)
+                    st.image(p_data['sprites']['front_default'], width=100)
                 with r1c2:
-                    # Rendering stats with your specific labels
                     stats_html = ""
                     for idx, s in enumerate(p_data['stats']):
                         label = STAT_MAP[idx]
-                        val = s['base_stat']
-                        stats_html += f'<div style="font-size:14px; line-height:1.4;"><b>{label}:</b> {val}</div>'
+                        stats_html += f'<div style="font-size:13px; line-height:1.2;"><b>{label}:</b> {s["base_stat"]}</div>'
                     st.markdown(stats_html, unsafe_allow_html=True)
 
-                # Row 2: Type Analysis
-                weak, resist, super_eff = calculate_analysis(p_data['types'])
-                st.markdown(f'''
-                    <div style="background:rgba(255,255,255,0.07); padding:6px; border-radius:5px; margin:10px 0;">
-                        <div style="font-size:10px; margin-bottom:2px;"><b>WEAK:</b> {render_badges(weak)}</div>
-                        <div style="font-size:10px; margin-bottom:2px;"><b>RESIST:</b> {render_badges(resist)}</div>
-                        <div style="font-size:10px; color:#3498db;"><b>STR VS:</b> {render_badges(super_eff)}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
+                # Row 2: Two-Column Type Chart (Offense vs Defense)
+                weak, resist, super_eff, not_very = calculate_analysis(p_data['types'])
+                st.markdown('<div style="margin-top:10px; border-top:1px solid #444; padding-top:5px;"></div>', unsafe_allow_html=True)
+                
+                type_col1, type_col2 = st.columns(2)
+                with type_col1:
+                    st.markdown(f'''
+                        <div style="font-size:10px; font-weight:bold; color:#ff4b4b; text-align:center;">🛡️ DEFENSE</div>
+                        <div style="font-size:9px;"><b>WEAK:</b><br>{render_badges(weak)}</div>
+                        <div style="font-size:9px;"><b>RESIST:</b><br>{render_badges(resist)}</div>
+                    ''', unsafe_allow_html=True)
+                
+                with type_col2:
+                    st.markdown(f'''
+                        <div style="font-size:10px; font-weight:bold; color:#3498db; text-align:center;">⚔️ OFFENSE</div>
+                        <div style="font-size:9px;"><b>STR VS:</b><br>{render_badges(super_eff)}</div>
+                        <div style="font-size:9px;"><b>WEAK VS:</b><br>{render_badges(not_very)}</div>
+                    ''', unsafe_allow_html=True)
 
                 # Row 3: Move Selection
+                st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
                 all_m = sorted(list(set([m['move']['name'].replace("-"," ").title() for m in p_data['moves']])))
                 st.selectbox("Add Move", options=[""] + all_m, key=f"search_{i}", on_change=add_move_callback, args=(i,), label_visibility="collapsed")
                 
@@ -114,7 +123,7 @@ else:
                             bg = TYPE_COLORS.get(m_details['type']['name'], "#777")
                             m_col, x_col = st.columns([5, 1.2])
                             m_col.markdown(f'''
-                                <div style="background-color:{bg}; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; margin-top:3px; height:28px; display:flex; align-items:center;">
+                                <div style="background-color:{bg}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:2px; height:24px; display:flex; align-items:center;">
                                     {m_name.upper()}
                                 </div>
                             ''', unsafe_allow_html=True)
