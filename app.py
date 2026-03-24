@@ -1,13 +1,16 @@
 import streamlit as st
 import requests
-# Place this at the very top of app.py right after st.set_page_config
+# Updated Sidebar Navigation in app.py
+st.sidebar.title("🎮 PokéDND Menu")
+
+# If you want a button that specifically acts as a "Home" reset
+if st.sidebar.button("🏠 Home Page"):
+    st.switch_page("app.py")
+
 if st.sidebar.button("➡️ Go to Team Builder"):
-    # Streamlit Cloud prefers the relative path without 'pages/' 
-    # if it's already recognized as a multipage app
     try:
         st.switch_page("pages/1_Team_Builder.py")
-    except Exception:
-        # Fallback if the above pathing fails on your specific server config
+    except:
         st.switch_page("1_Team_Builder.py")
 # 1. Page Config - Forces sidebar to stay open and uses wide layout
 st.set_page_config(page_title="PokéDex Explorer", layout="wide", initial_sidebar_state="expanded")
