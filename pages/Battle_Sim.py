@@ -87,12 +87,12 @@ def get_type_mod(move_type, defender_types):
     except: return 0
 
 # --- 6. SIDEBAR ---
-st.sidebar.title("🎮 PokéDND Menu")
-if st.sidebar.button("🏠 Home", use_container_width=True): st.switch_page("app.py")
-if st.sidebar.button("➡️ Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
+st.sidebar.title("PokéDND Menu")
+if st.sidebar.button("Home", use_container_width=True): st.switch_page("app.py")
+if st.sidebar.button("Team Builder", use_container_width=True): st.switch_page("pages/Team_Builder.py")
 
 # --- 7. TEAM RIBBON ---
-st.title("⚔️ Poke Camp Battle Sim")
+st.title(" Poke Camp Battle Sim")
 if st.session_state.get('team'):
     st.write("### 👥 Your Team")
     ribbon = st.columns(6)
@@ -115,7 +115,7 @@ except:
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("🛡️ Attacker")
+    st.subheader(" Attacker")
     atk_name = st.selectbox("Search Attacker", [""] + all_p, key="atk_sb")
     if atk_name != st.session_state['last_atk_name']:
         st.session_state['atk_tmp'] = []
@@ -136,13 +136,13 @@ with col1:
             atk_moves = st.session_state['atk_tmp']
             
         c_a1, c_a2 = st.columns(2)
-        with c_a1: atk_crit = st.checkbox("🎯 Force Crit", key="atk_crit_toggle")
+        with c_a1: atk_crit = st.checkbox(" Force Crit", key="atk_crit_toggle")
         with c_a2: 
             if st.button("Clear Moves", key="cl_atk"): 
                 st.session_state['atk_tmp'] = []; st.rerun()
 
 with col2:
-    st.subheader("🎯 Target")
+    st.subheader(" Target")
     def_name = st.selectbox("Search Target", [""] + all_p, key="def_sb")
     if def_name != st.session_state['last_def_name']:
         st.session_state['def_moves_list'] = []
@@ -163,7 +163,7 @@ with col2:
             def_moves = st.session_state['def_moves_list']
             
         c_d1, c_d2 = st.columns(2)
-        with c_d1: def_crit = st.checkbox("🎯 Force Crit", key="def_crit_toggle")
+        with c_d1: def_crit = st.checkbox(" Force Crit", key="def_crit_toggle")
         with c_d2:
             if st.button("Clear Moves", key="cl_def"): 
                 st.session_state['def_moves_list'] = []; st.rerun()
@@ -173,7 +173,7 @@ st.divider()
 if atk_data and def_data:
     aspd, dspd = atk_data['stats'][5]['base_stat']//15, def_data['stats'][5]['base_stat']//15
     f_p = atk_data['name'] if aspd >= dspd else def_data['name']
-    st.markdown(f'<div class="turn-order-banner">🏃 {f_p.capitalize()} acts FIRST</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="turn-order-banner"> {f_p.capitalize()} acts FIRST</div>', unsafe_allow_html=True)
 
     g1, g2 = st.columns(2)
 
