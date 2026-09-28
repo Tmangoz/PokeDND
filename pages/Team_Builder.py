@@ -91,15 +91,15 @@ def add_move_callback(idx):
         st.session_state[f"search_move_{idx}"] = ""
 
 # --- SIDEBAR ---
-st.sidebar.title("🎮 PokéDND Menu")
-if st.sidebar.button("🏠 Home Page", use_container_width=True): st.switch_page("app.py")
-if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True): st.switch_page("pages/Battle_Sim.py")
+st.sidebar.title("PokéDND Menu")
+if st.sidebar.button("Home Page", use_container_width=True): st.switch_page("app.py")
+if st.sidebar.button("Battle Simulator", use_container_width=True): st.switch_page("pages/Battle_Sim.py")
 st.sidebar.divider()
-if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
+if st.sidebar.button("Clear Full Team", type="secondary", use_container_width=True):
     st.session_state['team'] = []; st.session_state['selected_moves'] = {}; st.session_state['shiny_states'] = {}; st.rerun()
 
 # --- MAIN PAGE ---
-st.title("🏆 PokéDND Team Builder")
+st.title("PokéDND Team Builder")
 all_names = get_all_pokemon_names()
 quick_add = st.selectbox("Quick Add Pokémon:", options=[""] + all_names, format_func=lambda x: x.capitalize() if x else "Search to add...", key="quick_add_team")
 
