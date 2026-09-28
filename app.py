@@ -84,22 +84,22 @@ if 'explorer_shiny' not in st.session_state:
     st.session_state['explorer_shiny'] = False
 
 # --- SIDEBAR MENU ---
-st.sidebar.title("🎮 PokéDND Menu")
+st.sidebar.title("PokéDND Menu")
 
-if st.sidebar.button("🏠 Home Page", use_container_width=True):
+if st.sidebar.button("Home Page", use_container_width=True):
     st.switch_page("app.py")
 
 team_count = len(st.session_state['team'])
-if st.sidebar.button(f"➡️ Team Builder ({team_count}/6)", use_container_width=True):
+if st.sidebar.button(f"Team Builder ({team_count}/6)", use_container_width=True):
     st.switch_page("pages/Team_Builder.py")
 
 # NEW: Battle Sim Button
-if st.sidebar.button("⚔️ Battle Simulator", use_container_width=True):
+if st.sidebar.button("Battle Simulator", use_container_width=True):
     st.switch_page("pages/Battle_Sim.py")
 
 st.sidebar.divider()
 
-if st.sidebar.button("🗑️ Clear Full Team", type="secondary", use_container_width=True):
+if st.sidebar.button("Clear Full Team", type="secondary", use_container_width=True):
     st.session_state['team'] = []
     st.session_state['shiny_states'] = {}
     if 'selected_moves' in st.session_state:
@@ -172,7 +172,7 @@ if search_query:
                     st.progress(min(val / 160, 1.0))
 
             st.divider()
-            st.write("### 📜 Learnable TMs")
+            st.write("### Learnable TMs")
             
             tm_moves = [m for m in p_data['moves'] if any(v['move_learn_method']['name'] == 'machine' for v in m['version_group_details'])]
             
